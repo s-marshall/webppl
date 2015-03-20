@@ -755,15 +755,10 @@ ParticleFilter.prototype.exit = function(s, retval) {
   this.activeParticle().completed = true;
   // this should be negative if there are no valid next particles
   var nextRunningParticleIndex = this.nextRunningParticleIndex();
+  var allParticlesFinished = nextRunningParticleIndex < 0;
 
   // Wait for all particles to reach exit.
-  // variable #factors: check if any other particles are continuing
-  //   yes: not at last particle AND some running particle exists
-  if (!this.allParticlesAdvanced() && nextRunningParticleIndex >= 0){
-    // because you can't just resample everytime a particle exits,
-    // only when the next-running-particle-index wraps around.
-    if (nextRunningParticleIndex < this.particleIndex)
-      this.resampleParticles();
+  if (!allParticlesFinished) {
     this.particleIndex = nextRunningParticleIndex;
     return this.activeParticle().continuation(this.activeParticle().store);
   }
