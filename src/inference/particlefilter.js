@@ -91,9 +91,9 @@ module.exports = function(env) {
   ParticleFilter.prototype.nextRunningParticleIndex = function() {
     var ni = this.particleIndex + 1;
     var nxt = util.indexOfPred(this.particles, function(p) {return !p.completed}, ni);
-    return nxt >= 0 ?
-        nxt :
-        util.indexOfPred(this.particles, function(p) {return !p.completed});
+    return (nxt >= 0 ?
+            nxt :
+            util.indexOfPred(this.particles, function(p) {return !p.completed}));
   };
 
   ParticleFilter.prototype.lastRunningParticleIndex = function() {
