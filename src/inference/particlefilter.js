@@ -17,6 +17,7 @@ module.exports = function(env) {
     return {
       continuation: particle.continuation,
       weight: particle.weight,
+      completed: particle.completed,
       value: particle.value,
       store: _.clone(particle.store)
     };
@@ -33,6 +34,7 @@ module.exports = function(env) {
       var particle = {
         continuation: exitK,
         weight: 0,
+        completed: false,
         value: undefined,
         store: _.clone(s)
       };
@@ -47,7 +49,7 @@ module.exports = function(env) {
     env.coroutine = this;
 
     this.oldStore = _.clone(s); // will be reinstated at the end
-  }
+  };
 
   ParticleFilter.prototype.run = function() {
     // Run first particle
@@ -67,10 +69,12 @@ module.exports = function(env) {
     if (this.allParticlesAdvanced()) {
       // Resample in proportion to weights
       this.resampleParticles();
-      this.particleIndex = 0;
+      // variable #factors: resampling can kill all continuing particles
+      var fp = this.firstRunningParticleIndex();
+      this.particleIndex = fp == -1 ? this.particles.length - 1 : fp;
     } else {
       // Advance to the next particle
-      this.particleIndex += 1;
+      this.particleIndex = this.nextRunningParticleIndex();
     }
 
     return this.activeParticle().continuation(this.activeParticle().store);
@@ -80,8 +84,24 @@ module.exports = function(env) {
     return this.particles[this.particleIndex];
   };
 
+  ParticleFilter.prototype.firstRunningParticleIndex = function() {
+    return util.indexOfPred(this.particles, function(p) {return !p.completed});
+  };
+
+  ParticleFilter.prototype.nextRunningParticleIndex = function() {
+    var ni = this.particleIndex + 1;
+    var nxt = util.indexOfPred(this.particles, function(p) {return !p.completed}, ni);
+    return nxt >= 0 ?
+        nxt :
+        util.indexOfPred(this.particles, function(p) {return !p.completed});
+  };
+
+  ParticleFilter.prototype.lastRunningParticleIndex = function() {
+    return util.lastIndexOfPred(this.particles, function(p) {return !p.completed});
+  };
+
   ParticleFilter.prototype.allParticlesAdvanced = function() {
-    return ((this.particleIndex + 1) === this.particles.length);
+    return this.particleIndex === this.lastRunningParticleIndex();
   };
 
   ParticleFilter.prototype.resampleParticles = function() {
@@ -127,11 +147,14 @@ module.exports = function(env) {
   ParticleFilter.prototype.exit = function(s, retval) {
 
     this.activeParticle().value = retval;
+    this.activeParticle().completed = true;
+    // this should be negative if there are no valid next particles
+    var nextRunningParticleIndex = this.nextRunningParticleIndex();
+    var allParticlesFinished = nextRunningParticleIndex < 0;
 
-    // Wait for all particles to reach exit before computing
-    // marginal distribution from particles
-    if (!this.allParticlesAdvanced()) {
-      this.particleIndex += 1;
+    // Wait for all particles to reach exit.
+    if (!allParticlesFinished) {
+      this.particleIndex = nextRunningParticleIndex;
       return this.activeParticle().continuation(this.activeParticle().store);
     }
 

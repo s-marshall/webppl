@@ -164,19 +164,19 @@ function makeTest(testData) {
 }
 
 var testNames = [
-  "testEnumeration",
-  "testEnumerationStore",
-  "testEnumerationCached",
-  "testParticleFilter",
-  "testParticleFilterStore",
-  "testPFVarFactors",
-  "testMH",
-  "testMHStore",
-  "testPMCMC",
-  "testPMCMCStore",
-  "testPFRj",
-  "testPFRjStore",
-  "testPFRjAsMH"
+  'testEnumeration',
+  'testEnumerationStore',
+  'testEnumerationCached',
+  'testParticleFilter',
+  'testParticleFilterStore',
+  'testPFVarFactors',
+  'testMH',
+  'testMHStore',
+  'testPMCMC',
+  'testPMCMCStore',
+  'testPFRj',
+  'testPFRjStore',
+  'testPFRjAsMH'
 ];
 
 var exampleNames = [
