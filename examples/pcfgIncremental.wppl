@@ -18,25 +18,29 @@ var terminal = function(symbol) {
   return rules[symbol].words[discrete(rules[symbol].probs)]
 }
 
-var pcfg = function(symbol) {
-  preTerminal(symbol) ? [terminal(symbol)] : expand(pcfgTransition(symbol))
+var pcfg = function(symbol, yieldsofar, trueyield) {
+  if (preTerminal(symbol)) {
+    var t = terminal(symbol)
+    if (yieldsofar.length < trueyield.length) {
+      factor(t == trueyield[yieldsofar.length] ? 0 : -Infinity)
+    }
+    return yieldsofar.concat([t])
+  } else {
+    return expand(pcfgTransition(symbol), yieldsofar, trueyield) }
 }
 
-var expand = function(symbols) {
+var expand = function(symbols, yieldsofar, trueyield) {
   if (symbols.length == 0) {
-    return []
+    return yieldsofar;
   } else {
-    var f = pcfg(symbols[0])
-    return f.concat(expand(symbols.slice(1)))
+    return expand(
+        symbols.slice(1),
+        pcfg(symbols[0], yieldsofar, trueyield),
+        trueyield);
   }
 }
 
-var arrayEq = function(a, b) {
-  return (a.length == 0) ? true : (a[0] == b[0] && arrayEq(a.slice(1), b.slice(1)))
-}
-
 Enumerate(function() {
-  var y = pcfg('start')
-  factor(arrayEq(y.slice(0, 2), ['tall', 'John']) ? 0 : -Infinity) //yield starts with "tall John"
+  var y = pcfg('start', [], ['tall', 'John'])
   return y[2] ? y[2] : '' //distribution on next word?
 }, 300)
