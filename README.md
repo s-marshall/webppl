@@ -1,19 +1,31 @@
-webppl
+webppl [![Build Status](https://travis-ci.org/probmods/webppl.svg?branch=dev)](https://travis-ci.org/probmods/webppl)
 ======
 
 Probabilistic programming for the web
 
-[![Build Status](https://travis-ci.org/probmods/webppl.svg?branch=dev)](https://travis-ci.org/probmods/webppl)
+## Quick start
 
+Install using [nodejs](http://nodejs.org):
 
-## Setup
+    npm install -g webppl
 
-Requirements:
+Run webppl programs:
 
-- [git](http://git-scm.com/)
-- [nodejs](http://nodejs.org)
+    webppl myprogram.wppl
 
-Installation:
+Upgrade webppl:
+
+    npm update -g webppl
+
+## License
+
+webppl is released under the [MIT License](LICENSE.md).
+
+## Contributions
+
+We encourage you to contribute to webppl! Check out our [guidelines for contributors](CONTRIBUTING.md).
+
+## Installation from GitHub
 
     git clone https://github.com/probmods/webppl.git
     cd webppl
@@ -42,7 +54,7 @@ Before committing changes, run grunt (which runs tests and linting):
 
     grunt
 
-If grunt doesn't succeed, the [continuous integration tests](https://travis-ci.org/probmods/webppl.svg?branch=dev) will fail as well.
+If grunt doesn't succeed, the [continuous integration tests](https://travis-ci.org/probmods/webppl) will fail as well.
 
 To only run the tests, do:
 
@@ -61,7 +73,7 @@ To compile webppl for use in browser, run:
     npm install -g browserify
     browserify -t brfs src/main.js > compiled/webppl.js
 
-## Debugging webppl programs
+## Debugging
 
 To debug WebPPL programs running in Chrome, enable [pause on JavaScript exceptions](https://developer.chrome.com/devtools/docs/javascript-debugging#pause-on-exceptions) in the Chrome debugger. To debug WebPPL programs running in nodejs, use node-inspector as follows:
 
