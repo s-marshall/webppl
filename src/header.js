@@ -29,13 +29,11 @@ var particlefilter = require('./inference/particlefilter.js');
 var mh = require('./inference/mh.js');
 var pmcmc = require('./inference/pmcmc.js');
 var smc = require('./inference/smc.js');
-var asmc = require('./inference/smc.js');
+var asmc = require('./inference/asmc.js');
 var variational = require('./inference/variational.js');
 var headerUtils = require('./headerUtils.js');
 
-
 module.exports = function(env) {
-
 
   // Inference interface
 
@@ -77,7 +75,6 @@ module.exports = function(env) {
   env.exit = function(s, retval) {
     return env.coroutine.exit(s, retval);
   };
-
 
   // Exports
 

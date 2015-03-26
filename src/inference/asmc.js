@@ -45,13 +45,10 @@ module.exports = function(env) {
     this.buffer = [];
     this.bufferSize = bufferSize; // \rho
     this.numParticles = 0;
-
     this.obsWeights = {};
     this.exitedParticles = [];
-
     this.exitK = function(s) {return wpplFn(s, env.exit, a);};
     this.store = s;
-    console.log("this.store = ", this.store);
 
     // Create initial particles
     var initNumP = Math.floor(bufferSize * 3 / 5) // \rho_0 = 3/5 * \rho
@@ -69,27 +66,25 @@ module.exports = function(env) {
     return this.control(numParticles)
   };
 
-  // aSMC.prototype.run = function(numParticles) {
-  //   // Run first particle
-  //   return this.control(numParticles)
-  // };
-
   aSMC.prototype.control = function(numP) {
-    // allows for continuation of shooting particles
+    // allows for continuation - WIP
     this.numParticles = (numP == undefined) ? this.numParticles : this.numParticles + numP;
 
     // make a choice of whether you want to launch a new particle or continue
     // an existing one
+    var p, launchP;
     var i = Math.floor((this.buffer.length + 1) * Math.random())
-    var launchP = i == this.buffer.length ? initParticle(this.store, this.exitK) : this.buffer[i];
-    var p;
-
-    if (launchP.numChildrenToSpawn > 1) { // launch one and reduce numChildren
-      p = copyOneParticle(launchP);
-      launchP.numChildrenToSpawn -= 1;
-    } else {           // if initial particle or particle with 1 child to spawn
-      p = launchP;
-      this.buffer = _.without(this.buffer, p) // deque
+    if (i == this.buffer.length) { // generate new particle
+      p = initParticle(this.store, this.exitK);
+    } else {                    // launch particle in queue
+      launchP = this.buffer[i];
+      if (launchP.numChildrenToSpawn > 1) {
+        p = copyOneParticle(launchP);
+        launchP.numChildrenToSpawn -= 1;
+      } else {
+        p = launchP;
+        this.buffer = _.without(this.buffer, p);
+      }
     }
     this.activeParticle = p;
     return p.continuation(p.store)
@@ -107,24 +102,25 @@ module.exports = function(env) {
     var newFI = fi == undefined ? 0 : fi + 1;
     this.activeParticle.factorIndex = newFI;
 
+    if (this.activeParticle.weight == -Infinity) return this.control();
+
     var lk = this.obsWeights[newFI];
     if (lk == undefined) {      // 1st particle at observation
       var det = {
-        w: this.activeParticle.weight,
         wbar: this.activeParticle.weight,
-        mnk:  1,
-        vnk: this.activeParticle.weight
+        mnk:  1
       };
       this.obsWeights[newFI] = [det];
+      this.activeParticle.numChildrenToSpawn = 1; // keep going for the 1st particle at obs n
       this.activeParticle.finalWeight = this.activeParticle.weight;
     } else {                    // 2nd or more particle at observation
       var currMultiplicity = this.activeParticle.multiplicity;
       var currWeight = this.activeParticle.weight;
-      var ldenom = Math.log(lk.length + currMultiplicity); // k - 1 + Ckn : log
+      var denom = lk.length + currMultiplicity; // k - 1 + Ckn
       var prevWBar = lk[lk.length-1].wbar;
-      var wbar = util.logsumexp([Math.log(lk.length) - ldenom + prevWBar,
-                                 Math.log(currMultiplicity - ldenom + currWeight)])
-      var logRatio = currWeight - wbar; // Rnk : log
+      var wbar = util.logsumexp([Math.log(lk.length / denom) + prevWBar,
+                                 Math.log(currMultiplicity / denom) + currWeight])
+      var logRatio = currWeight - wbar;
       var numChildrenAndWeight = [];
       if (logRatio < 0) {
         numChildrenAndWeight = Math.log(Math.random()) < logRatio ?
@@ -133,19 +129,16 @@ module.exports = function(env) {
       } else {
         var totalChildren = 0;
         for (var v = 0; v < lk.length; v++) totalChildren += lk[v].mnk // \sum M^k_n
-        var minK = Math.min(this.bufferSize, lk.length);               // min(K_0, k-1)
+        var minK = Math.min(this.bufferSize, lk.length); // min(K_0, k-1)
         var rnk = Math.exp(logRatio);
         var clampedRnk = totalChildren <= minK ? Math.ceil(rnk) : Math.floor(rnk);
         numChildrenAndWeight = [clampedRnk, currWeight - Math.log(clampedRnk)];
       }
       var det2 = {
-        w: currWeight,
         wbar: wbar,
-        mnk:  numChildrenAndWeight[0],
-        vnk: numChildrenAndWeight[1]
+        mnk:  numChildrenAndWeight[0]
       };
       this.obsWeights[newFI] = lk.concat([det2])
-      // console.log("this.obsWeights = ", this.obsWeights);
       if (numChildrenAndWeight[0] > 0) {            // there are children
         if (this.buffer.length < this.bufferSize) { // buffer can be added to
           this.activeParticle.numChildrenToSpawn = numChildrenAndWeight[0];
@@ -156,7 +149,7 @@ module.exports = function(env) {
           this.activeParticle.weight = numChildrenAndWeight[1];
         }
         // when at last factor, this weight will be the correct weight for the particle
-        this.activeParticle.finalWeight = Math.log(this.activeParticle.currMultiplicity)
+        this.activeParticle.finalWeight = Math.log(this.activeParticle.multiplicity)
           + this.activeParticle.weight
           + score
         this.buffer.push(this.activeParticle); // push into buffer
@@ -167,15 +160,12 @@ module.exports = function(env) {
   };
 
   aSMC.prototype.exit = function(s, retval) {
-    // needswork: if numParticles number of particles have exited, then package
-    // up the continuation and return to wppl
     this.activeParticle.value = retval;
-    console.log("this.activeParticle.value = ", this.activeParticle.value);
     this.activeParticle.completed = true;
 
+    // correct weights with multiplicity and numChildren
     this.activeParticle.weight = this.activeParticle.finalWeight;
     this.exitedParticles.push(this.activeParticle)
-    console.log("this.exitedParticles = ", this.exitedParticles);
 
     if (this.exitedParticles.length < this.numParticles) {
       return this.control()
@@ -196,7 +186,11 @@ module.exports = function(env) {
       var nc = util.logsumexp(_.map(this.exitedParticles, function(p) {return p.weight}));
       // Save estimated normalization constant in erp (average particle weight)
       dist.normalizationConstant = nc - Math.log(this.numParticles);
-      dist.continue = function(numP) {this.control(numP)};
+
+      // allow for continuing pf - WIP
+      var ccontrol = this.control.bind(this);
+      dist.continue = function(numP) {return ccontrol(numP)};
+
       // Reinstate previous coroutine:
       env.coroutine = this.oldCoroutine;
       // Return from particle filter by calling original continuation:
