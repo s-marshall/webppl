@@ -83,7 +83,7 @@ module.exports = function(env) {
         launchP.numChildrenToSpawn -= 1;
       } else {
         p = launchP;
-        this.buffer = _.without(this.buffer, p);
+        this.buffer = util.deleteIndex(this.buffer, i);
       }
     }
     this.activeParticle = p;
