@@ -4,6 +4,14 @@
 // bufferSize: how many particles to keep in queue
 // numParticles: total number of particles to run
 
+/**
+   To do:
+   1. What to do when first particle at factor n is -Infinity?
+   2. The normalization constant is, on average, incorrect more than the
+      straightforward particle filter case. Why?
+      (Do 'hard' factors affect this differently?)
+ **/
+
 'use strict';
 
 var _ = require('underscore');
@@ -50,38 +58,37 @@ module.exports = function(env) {
     this.exitK = function(s) {return wpplFn(s, env.exit, a);};
     this.store = s;
 
-    // Create initial particles
-    var initNumP = Math.floor(bufferSize * 3 / 5) // \rho_0 = 3/5 * \rho
-    for (var i = 0; i < initNumP; i++) {
-      this.buffer.push(initParticle(s, this.exitK));
-    }
-
-    // Move old coroutine out of the way and install this as the current
-    // handler.
+    // Move old coroutine out of the way and install this as current handler.
     this.k = k;
     this.oldCoroutine = env.coroutine;
     env.coroutine = this;
     this.oldStore = _.clone(s); // will be reinstated at the end
 
+    // start running
     return this.control(numParticles)
   };
 
   aSMC.prototype.control = function(numP) {
+    console.log("******************* At Control ********************");
+
     // allows for continuation - WIP
     this.numParticles = (numP == undefined) ? this.numParticles : this.numParticles + numP;
 
-    // make a choice of whether you want to launch a new particle or continue
-    // an existing one
+    // launch a new particle OR continue an existing one
     var p, launchP;
     var i = Math.floor((this.buffer.length + 1) * Math.random())
     if (i == this.buffer.length) { // generate new particle
+      console.log("------------ Generating new particle --------------");
       p = initParticle(this.store, this.exitK);
     } else {                    // launch particle in queue
       launchP = this.buffer[i];
       if (launchP.numChildrenToSpawn > 1) {
+        console.log("============== Launching one of many ==============");
+        console.log("spawing 1 of " + launchP.numChildrenToSpawn)
         p = copyOneParticle(launchP);
         launchP.numChildrenToSpawn -= 1;
       } else {
+        console.log("============== Launching one of one ===============");
         p = launchP;
         this.buffer = util.deleteIndex(this.buffer, i);
       }
@@ -102,25 +109,35 @@ module.exports = function(env) {
     var newFI = fi == undefined ? 0 : fi + 1;
     this.activeParticle.factorIndex = newFI;
 
-    if (this.activeParticle.weight == -Infinity) return this.control();
-
     var lk = this.obsWeights[newFI];
     if (lk == undefined) {      // 1st particle at observation
+      console.log("++++++++++ " + "Particle 1 at factor " + newFI + " ++++++++++");
       var det = {
         wbar: this.activeParticle.weight,
         mnk:  1
       };
       this.obsWeights[newFI] = [det];
-      this.activeParticle.numChildrenToSpawn = 1; // keep going for the 1st particle at obs n
+      this.activeParticle.numChildrenToSpawn = 1;
       this.activeParticle.finalWeight = this.activeParticle.weight;
-    } else {                    // 2nd or more particle at observation
+    } else {                    // 2nd or greater particle at observation
+      console.log("++++++++++ " + "Particle " + (lk.length + 1)  + " at factor " + newFI + " ++++++++++");
       var currMultiplicity = this.activeParticle.multiplicity;
+      console.log("currMultiplicity = ", currMultiplicity);
       var currWeight = this.activeParticle.weight;
+      console.log("currWeight = ", currWeight);
       var denom = lk.length + currMultiplicity; // k - 1 + Ckn
+      console.log("lk.length = ", lk.length);
+      console.log("denom = ", denom);
       var prevWBar = lk[lk.length-1].wbar;
-      var wbar = util.logsumexp([Math.log(lk.length / denom) + prevWBar,
-                                 Math.log(currMultiplicity / denom) + currWeight])
+      console.log("prevWBar = ", prevWBar);
+      // var wbar = util.logsumexp([Math.log(lk.length / denom) + prevWBar,
+      //                            Math.log(currMultiplicity / denom) + currWeight])
+      var wbar = -Math.log(denom) + util.logsumexp([Math.log(lk.length) + prevWBar,
+                                                    Math.log(currMultiplicity) + currWeight])
+      console.log("wbar = ", wbar);
+      if (wbar > 0) throw "Positive weight!!"
       var logRatio = currWeight - wbar;
+      console.log("logRatio = ", logRatio);
       var numChildrenAndWeight = [];
       if (logRatio < 0) {
         numChildrenAndWeight = Math.log(Math.random()) < logRatio ?
@@ -138,6 +155,7 @@ module.exports = function(env) {
         wbar: wbar,
         mnk:  numChildrenAndWeight[0]
       };
+      console.log("numChildrenAndWeight = ", numChildrenAndWeight);
       this.obsWeights[newFI] = lk.concat([det2])
       if (numChildrenAndWeight[0] > 0) {            // there are children
         if (this.buffer.length < this.bufferSize) { // buffer can be added to
@@ -152,14 +170,18 @@ module.exports = function(env) {
         this.activeParticle.finalWeight = Math.log(this.activeParticle.multiplicity)
           + this.activeParticle.weight
           + score
+        console.log("this.activeParticle.finalWeight = ", this.activeParticle.finalWeight);
         this.buffer.push(this.activeParticle); // push into buffer
+      } else {
+        // if there are no children, active particle automatically dropped
+        console.log("##### Particle Killed #####")
       }
-      // if there are no children, active particle automatically dropped
     }
     return this.control()              // return to control
   };
 
   aSMC.prototype.exit = function(s, retval) {
+    console.log("///// Particle Exited /////")
     this.activeParticle.value = retval;
     this.activeParticle.completed = true;
 
@@ -188,7 +210,7 @@ module.exports = function(env) {
       dist.normalizationConstant = nc - Math.log(this.numParticles);
 
       // allow for continuing pf - WIP
-      var ccontrol = this.control.bind(this);
+      var ccontrol = this.control.bind(env.coroutine);
       dist.continue = function(numP) {return ccontrol(numP)};
 
       // Reinstate previous coroutine:
