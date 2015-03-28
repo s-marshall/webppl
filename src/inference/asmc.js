@@ -180,13 +180,7 @@ module.exports = function(env) {
 
       // allow for continuing pf - WIP
       var currCoroutine = this;
-      dist.continue = function(s, k, a, numP) {
-        currCoroutine.k = k;
-        currCoroutine.oldCoroutine = env.coroutine;
-        env.coroutine = currCoroutine;
-        currCoroutine.oldStore = _.clone(s);
-        return currCoroutine.control(numP)
-      };
+      dist.continue = function(numP) {return currCoroutine.control(numP)};
 
       // Reinstate previous coroutine:
       env.coroutine = this.oldCoroutine;
