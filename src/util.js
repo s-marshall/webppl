@@ -74,7 +74,7 @@ var lastIndexOfPred = function(l, p, start) {
 };
 
 var deleteIndex = function(arr, i) {
-  return arr.slice(0,i).concat(arr.slice(i+1))
+  return arr.slice(0, i).concat(arr.slice(i + 1))
 }
 
 // func(x, i, xs, nextK)
