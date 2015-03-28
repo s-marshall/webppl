@@ -1,16 +1,8 @@
 ////////////////////////////////////////////////////////////////////
 // Asynchronous Anytime SMC.
 // http://arxiv.org/abs/1407.2864
-// bufferSize: how many particles to keep in queue
+// bufferSize: queue size
 // numParticles: total number of particles to run
-
-/**
-   To do:
-   1. What to do when first particle at factor n is -Infinity?
-   2. The normalization constant is, on average, incorrect more than the
-      straightforward particle filter case. Why?
-      (Do 'hard' factors affect this differently?)
- **/
 
 'use strict';
 
@@ -24,7 +16,6 @@ module.exports = function(env) {
     return {
       continuation: particle.continuation,
       weight: particle.weight,
-      finalWeight: particle.finalWeight,
       completed: particle.completed,
       factorIndex: particle.factorIndex,
       value: particle.value,
@@ -38,7 +29,6 @@ module.exports = function(env) {
     return {
       continuation: cont,
       weight: 0,
-      finalWeight: 0,
       completed: false,
       factorIndex: undefined,
       value: undefined,
@@ -50,13 +40,18 @@ module.exports = function(env) {
 
   function aSMC(s, k, a, wpplFn, numParticles, bufferSize) {
 
-    this.buffer = [];
-    this.bufferSize = bufferSize; // \rho
-    this.numParticles = 0;
-    this.obsWeights = {};
-    this.exitedParticles = [];
+    this.numParticles = 0;      // K_0 -- initialized here, set in control
+    this.bufferSize = bufferSize == undefined ? numParticles : bufferSize; // \rho
+    this.initNumParticles = Math.floor(this.bufferSize * (1 / 2));         // \rho_0
     this.exitK = function(s) {return wpplFn(s, env.exit, a);};
     this.store = s;
+    this.buffer = [];
+    for (var i = 0; i < this.initNumParticles; i++) {
+      this.buffer.push(initParticle(this.store, this.exitK));
+    }
+
+    this.obsWeights = {};
+    this.exitedParticles = [];
 
     // Move old coroutine out of the way and install this as current handler.
     this.k = k;
@@ -70,7 +65,7 @@ module.exports = function(env) {
 
   aSMC.prototype.control = function(numP) {
     console.log("******************* At Control ********************");
-
+    console.log("this.buffer.length =", this.buffer.length);
     // allows for continuation - WIP
     this.numParticles = (numP == undefined) ? this.numParticles : this.numParticles + numP;
 
@@ -116,11 +111,11 @@ module.exports = function(env) {
         wbar: this.activeParticle.weight,
         mnk:  1
       };
+      console.log("currWeight = ", this.activeParticle.weight);
       this.obsWeights[newFI] = [det];
       this.activeParticle.numChildrenToSpawn = 1;
-      this.activeParticle.finalWeight = this.activeParticle.weight;
     } else {                    // 2nd or greater particle at observation
-      console.log("++++++++++ " + "Particle " + (lk.length + 1)  + " at factor " + newFI + " ++++++++++");
+      console.log("++++++++++ " + "Particle " + (lk.length + 1) + " at factor " + newFI + " ++++++++++");
       var currMultiplicity = this.activeParticle.multiplicity;
       console.log("currMultiplicity = ", currMultiplicity);
       var currWeight = this.activeParticle.weight;
@@ -130,8 +125,6 @@ module.exports = function(env) {
       console.log("denom = ", denom);
       var prevWBar = lk[lk.length-1].wbar;
       console.log("prevWBar = ", prevWBar);
-      // var wbar = util.logsumexp([Math.log(lk.length / denom) + prevWBar,
-      //                            Math.log(currMultiplicity / denom) + currWeight])
       var wbar = -Math.log(denom) + util.logsumexp([Math.log(lk.length) + prevWBar,
                                                     Math.log(currMultiplicity) + currWeight])
       console.log("wbar = ", wbar);
@@ -146,7 +139,8 @@ module.exports = function(env) {
       } else {
         var totalChildren = 0;
         for (var v = 0; v < lk.length; v++) totalChildren += lk[v].mnk // \sum M^k_n
-        var minK = Math.min(this.bufferSize, lk.length); // min(K_0, k-1)
+        console.log("totalChildren = ", totalChildren);
+        var minK = Math.min(this.numParticles, lk.length); // min(K_0, k-1)
         var rnk = Math.exp(logRatio);
         var clampedRnk = totalChildren <= minK ? Math.ceil(rnk) : Math.floor(rnk);
         numChildrenAndWeight = [clampedRnk, currWeight - Math.log(clampedRnk)];
@@ -166,11 +160,6 @@ module.exports = function(env) {
           this.activeParticle.numChildrenToSpawn = 1;
           this.activeParticle.weight = numChildrenAndWeight[1];
         }
-        // when at last factor, this weight will be the correct weight for the particle
-        this.activeParticle.finalWeight = Math.log(this.activeParticle.multiplicity)
-          + this.activeParticle.weight
-          + score
-        console.log("this.activeParticle.finalWeight = ", this.activeParticle.finalWeight);
         this.buffer.push(this.activeParticle); // push into buffer
       } else {
         // if there are no children, active particle automatically dropped
@@ -185,8 +174,8 @@ module.exports = function(env) {
     this.activeParticle.value = retval;
     this.activeParticle.completed = true;
 
-    // correct weights with multiplicity and numChildren
-    this.activeParticle.weight = this.activeParticle.finalWeight;
+    // correct weight with multiplicity
+    this.activeParticle.weight += Math.log(this.activeParticle.multiplicity)
     this.exitedParticles.push(this.activeParticle)
 
     if (this.exitedParticles.length < this.numParticles) {
@@ -203,11 +192,17 @@ module.exports = function(env) {
           }
           hist[k].prob += 1;
         });
-        var dist = erp.makeMarginalERP(hist);
+      var dist = erp.makeMarginalERP(hist);
 
-      var nc = util.logsumexp(_.map(this.exitedParticles, function(p) {return p.weight}));
-      // Save estimated normalization constant in erp (average particle weight)
-      dist.normalizationConstant = nc - Math.log(this.numParticles);
+      var lastFactorIndex = this.exitedParticles[0].factorIndex;
+      console.log("lastFactorIndex = ", lastFactorIndex);
+      var lk = this.obsWeights[lastFactorIndex];
+      console.log("K_n = ", lk.length);
+      console.log("K_0 = ", this.numParticles);
+      console.log("Wbar = ", lk[lk.length - 1].wbar);
+      dist.normalizationConstant = Math.log(lk.length) // K_n
+        - Math.log(this.numParticles)                  // K_0
+        + lk[lk.length - 1].wbar;                      // Wbar^k_n
 
       // allow for continuing pf - WIP
       var ccontrol = this.control.bind(env.coroutine);
