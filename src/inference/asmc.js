@@ -98,15 +98,15 @@ module.exports = function(env) {
     var fi = this.activeParticle.factorIndex;
     var newFI = fi == undefined ? 0 : fi + 1;
     this.activeParticle.factorIndex = newFI;
-    this.branching(newFI);	// compute branching and #children
-    return this.runProcess();	// return to runProcess
+    this.branching(newFI);      // compute branching and #children
+    return this.runProcess();   // return to runProcess
   };
 
   AsyncPF.prototype.branching = function(factorIndex) {
     // find weights at current observation
     var lk = this.obsWeights[factorIndex];
 
-    if (lk == undefined) {      // 1st particle at observation
+    if (lk == undefined) {     // 1st particle at observation
       var det = {
         wbar: this.activeParticle.weight,
         mnk: 1
@@ -118,9 +118,8 @@ module.exports = function(env) {
       var currWeight = this.activeParticle.weight;
       var denom = lk.length + currMultiplicity; // k - 1 + Ckn
       var prevWBar = lk[lk.length - 1].wbar;
-      var wbar = -Math.log(denom) +
-	      util.logsumexp([Math.log(lk.length) + prevWBar,
-                              Math.log(currMultiplicity) + currWeight]);
+      var wbar = -Math.log(denom) + util.logsumexp([Math.log(lk.length) + prevWBar,
+                                                    Math.log(currMultiplicity) + currWeight]);
       if (wbar > 0) throw 'Positive weight!!'; // sanity check
       var logRatio = currWeight - wbar;
       var numChildrenAndWeight = [];
@@ -184,11 +183,11 @@ module.exports = function(env) {
       // allow for continuing pf
       var currCoroutine = this;
       dist.continue = function(s, k, a, numP) {
-	currCoroutine.k = k;
-	currCoroutine.oldCoroutine = env.coroutine;
-	env.coroutine = currCoroutine;
-	currCoroutine.oldStore = _.clone(s); // will be reinstated at the end
-	return currCoroutine.runProcess(numP);
+        currCoroutine.k = k;
+        currCoroutine.oldCoroutine = env.coroutine;
+        env.coroutine = currCoroutine;
+        currCoroutine.oldStore = _.clone(s); // will be reinstated at the end
+        return currCoroutine.runProcess(numP);
       };
 
       // Reinstate previous coroutine:
