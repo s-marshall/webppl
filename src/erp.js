@@ -357,8 +357,11 @@ function makeMarginalERP(marginal) {
     norm += marginal[v].prob;
     supp.push(marginal[v].val);
   }
+  var mapEst = {val: undefined, prob: 0};
   for (v in marginal) {
-    marginal[v].prob = marginal[v].prob / norm;
+    var nprob = marginal[v].prob / norm;
+    if (nprob > mapEst.prob) mapEst = {val: marginal[v].val, prob: nprob}
+    marginal[v].prob = nprob;
   }
 
   // console.log("Creating distribution: ");
@@ -389,6 +392,8 @@ function makeMarginalERP(marginal) {
       function(params) {
         return supp;
       });
+
+  dist.MAP = mapEst;
   return dist;
 }
 
