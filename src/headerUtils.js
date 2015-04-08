@@ -1,5 +1,6 @@
 'use strict';
 
+var HashMap = require('hashmap');
 
 module.exports = function(env) {
 
@@ -13,15 +14,33 @@ module.exports = function(env) {
   // caching is across all uses of f, even in different execuation
   // paths.
   function cache(s, k, a, f) {
-    var c = {};
+    var c = new HashMap.HashMap();
     var cf = function(s, k, a) {
       var args = Array.prototype.slice.call(arguments, 3);
-      var stringedArgs = JSON.stringify(args);
-      if (stringedArgs in c) {
-        return k(s, c[stringedArgs]);
+      var lookup = c.get(args);
+      if (lookup) {
+        return k(s, lookup);
       } else {
         var newk = function(s, r) {
-          c[stringedArgs] = r;
+          c.set(args, r);
+          return k(s, r);
+        };
+        return f.apply(this, [s, newk, a].concat(args));
+      }
+    };
+    return k(s, cf);
+  }
+
+  function distCache(s, k, a, f) {
+    var c = new HashMap.HashMap();
+    var cf = function(s, k, a) {
+      var args = Array.prototype.slice.call(arguments, 3);
+      var lookup = c.get(args);
+      if (lookup) {
+        return k(s, lookup);
+      } else {
+        var newk = function(s, r) {
+          c.set(args, r);
           return k(s, r);
         };
         return f.apply(this, [s, newk, a].concat(args));
@@ -37,6 +56,7 @@ module.exports = function(env) {
   return {
     display: display,
     cache: cache,
+    distCache: distCache,
     apply: apply
   };
 
