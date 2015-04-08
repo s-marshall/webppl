@@ -32,6 +32,7 @@ var smc = require('./inference/smc.js');
 var variational = require('./inference/variational.js');
 var headerUtils = require('./headerUtils.js');
 
+var Hog = require('hog-descriptor');
 
 module.exports = function(env) {
 
@@ -97,7 +98,8 @@ module.exports = function(env) {
   addExports({
     _: _,
     util: util,
-    assert: assert
+    assert: assert,
+    Hog: Hog
   });
 
   // Inference functions and header utils
