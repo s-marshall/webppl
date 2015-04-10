@@ -55,6 +55,17 @@ function logsumexp(a) {
   return m + Math.log(sum);
 }
 
+// FIXME: only does flat array checking; no nesting
+function arrayEq(a, b) {
+  // if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 // More efficient version of (indexOf o map p)
 var indexOfPred = function(l, p, start) {
   var start = start || 0;
@@ -106,6 +117,7 @@ module.exports = {
   cpsForEach: cpsForEach,
   gensym: gensym,
   logsumexp: logsumexp,
+  arrayEq: arrayEq,
   indexOfPred: indexOfPred,
   lastIndexOfPred: lastIndexOfPred,
   makeGensym: makeGensym,
