@@ -11,29 +11,23 @@ var erp = require('../erp.js');
 module.exports = function(env) {
 
   function findChoice(trace, name) {
-    if (trace === undefined) {
-      return undefined;
-    }
-    for (var i = 0; i < trace.length; i++) {
-      if (trace[i].name === name) {
-        return trace[i];
-      }
-    }
-    return undefined;
+    return _.findWhere(trace, {name: name});
   }
 
   function acceptProb(trace, oldTrace, regenFrom, currScore, oldScore) {
-    if ((oldTrace === undefined) || oldScore === -Infinity) {return 1;} // init
+    if (oldTrace === undefined || oldScore === -Infinity) {return 1;} // init
     var fw = -Math.log(oldTrace.length);
-    trace.slice(regenFrom).map(function(s) {fw += s.reused ? 0 : s.choiceScore;});
+    trace.slice(regenFrom).map(function(s) {
+      fw += s.reused ? 0 : s.choiceScore;
+    });
     var bw = -Math.log(trace.length);
     oldTrace.slice(regenFrom).map(function(s) {
       var nc = findChoice(trace, s.name);
-      bw += (!nc || !nc.reused) ? s.choiceScore : 0; });
+      bw += (nc && nc.reused) ? 0 : s.choiceScore;
+    });
     var p = Math.exp(currScore - oldScore + bw - fw);
     assert.ok(!isNaN(p));
-    var acceptance = Math.min(1, p);
-    return acceptance;
+    return Math.min(1, p);
   }
 
   function MH(s, k, a, wpplFn, numIterations) {
@@ -49,9 +43,7 @@ module.exports = function(env) {
     this.oldStore = s;
     this.iterations = numIterations;
 
-    // Move old coroutine out of the way and install this as the current
-    // handler.
-
+    // Move old coroutine out of the way and install this as current handler.
     this.wpplFn = wpplFn;
     this.s = s;
     this.a = a;
@@ -85,12 +77,14 @@ module.exports = function(env) {
   MH.prototype.exit = function(s, val) {
     if (this.iterations > 0) {
       this.iterations -= 1;
-
-      //did we like this proposal?
-      var acceptance = acceptProb(this.trace, this.oldTrace,
-          this.regenFrom, this.currScore, this.oldScore);
+      // did we like this proposal?
+      var acceptance = acceptProb(this.trace,
+                                  this.oldTrace,
+                                  this.regenFrom,
+                                  this.currScore,
+                                  this.oldScore);
+      // if rejected, roll back trace, etc:
       if (Math.random() >= acceptance) {
-        // if rejected, roll back trace, etc:
         this.trace = this.oldTrace;
         this.currScore = this.oldScore;
         val = this.oldVal;
@@ -115,13 +109,9 @@ module.exports = function(env) {
       return this.sample(_.clone(regen.store), regen.k, regen.name, regen.erp, regen.params, true);
     } else {
       var dist = erp.makeMarginalERP(this.returnHist);
-
-      // Reinstate previous coroutine:
       var k = this.k;
-      env.coroutine = this.oldCoroutine;
-
-      // Return by calling original continuation:
-      return k(this.oldStore, dist);
+      env.coroutine = this.oldCoroutine; // Reinstate previous coroutine
+      return k(this.oldStore, dist); // Return by calling original continuation
     }
   };
 
