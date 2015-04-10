@@ -9,7 +9,7 @@
 var _ = require('underscore');
 var util = require('../util.js');
 var erp = require('../erp.js');
-
+var hm = require('hashmap');
 
 module.exports = function(env) {
 
@@ -159,16 +159,14 @@ module.exports = function(env) {
     }
 
     // Compute marginal distribution from (unweighted) particles
-    var hist = {};
-    _.each(
-        this.particles,
-        function(particle) {
-          var k = JSON.stringify(particle.value);
-          if (hist[k] === undefined) {
-            hist[k] = { prob: 0, val: particle.value };
-          }
-          hist[k].prob += 1;
-        });
+    var hist = new hm.HashMap();
+    _.each(this.particles,
+           function(particle) {
+             var k = particle.value;
+             var lk = hist.get(k);
+             if (!lk) hist.set(k, 0);
+             hist.set(k, hist.get(k) + 1);
+           });
     var dist = erp.makeMarginalERP(hist);
 
     // Save estimated normalization constant in erp (average particle weight)

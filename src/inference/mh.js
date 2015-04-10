@@ -7,12 +7,13 @@ var _ = require('underscore');
 var assert = require('assert');
 var util = require('../util.js');
 var erp = require('../erp.js');
+var hm = require('hashmap');
 
 module.exports = function(env) {
 
   function makeTrace(s, k, name, erp, params, currScore, choiceScore, val, reuse) {
     return {k: k, name: name, erp: erp, params: params, score: currScore,
-            choiceScore: choiceScore, val: val, reused: reuse, store: s};
+      choiceScore: choiceScore, val: val, reused: reuse, store: s};
   }
 
   function findChoice(trace, name) {
@@ -42,7 +43,7 @@ module.exports = function(env) {
     this.oldScore = -Infinity;
     this.oldVal = undefined;
     this.regenFrom = 0;
-    this.returnHist = {};
+    this.returnHist = new hm.HashMap();
     this.k = k;
     this.oldStore = s;
     this.iterations = numIterations;
@@ -102,11 +103,9 @@ module.exports = function(env) {
         val = this.oldVal;
       }
       // now add val to hist:
-      var stringifiedVal = JSON.stringify(val);
-      if (this.returnHist[stringifiedVal] === undefined) {
-        this.returnHist[stringifiedVal] = { prob: 0, val: val };
-      }
-      this.returnHist[stringifiedVal].prob += 1;
+      var lk = this.returnHist.get(val);
+      if (!lk) this.returnHist.set(val, 0);
+      this.returnHist.set(val, this.returnHist.get(val) + 1);
       return this.propose(val); // make a new proposal
     } else {
       var dist = erp.makeMarginalERP(this.returnHist);

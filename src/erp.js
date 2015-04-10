@@ -20,7 +20,6 @@
 var _ = require('underscore');
 var util = require('./util.js');
 
-
 function ERP(sampler, scorer, supporter, grad) {
   this.sample = sampler;
   this.score = scorer;
@@ -342,52 +341,39 @@ function multinomialSample(theta) {
     probAccum += theta[i];
     if (probAccum >= x) {
       return i;
-    } //FIXME: if x=0 returns i=0, but this isn't right if theta[0]==0...
+    } // FIXME: if x=0 returns i=0, but this isn't right if theta[0]==0...
   }
   return k;
 }
 
 // Make a discrete ERP from a {val: prob, etc.} object (unormalized).
 function makeMarginalERP(marginal) {
-
   // Normalize distribution:
   var norm = 0;
-  var supp = [];
-  for (var v in marginal) {
-    norm += marginal[v].prob;
-    supp.push(marginal[v].val);
-  }
+  var supp = marginal.keys();
+  marginal.forEach(function(prob, val) {norm += prob;});
   var mapEst = {val: undefined, prob: 0};
-  for (v in marginal) {
-    var nprob = marginal[v].prob / norm;
-    if (nprob > mapEst.prob) mapEst = {val: marginal[v].val, prob: nprob}
-    marginal[v].prob = nprob;
-  }
-
-  // console.log("Creating distribution: ");
-  // console.log(marginal);
-
+  marginal.forEach(function(prob, val) {
+    var nprob = prob / norm;
+    if (nprob > mapEst.prob) mapEst = {val: val, prob: nprob}
+    marginal.set(val, nprob);
+  });
   // Make an ERP from marginal:
   var dist = new ERP(
       function(params) {
         var x = Math.random();
-        var probAccum = 0;
-        for (var i in marginal) {
-          probAccum += marginal[i].prob;
-          if (probAccum >= x) {
-            return marginal[i].val;
-          } //FIXME: if x=0 returns i=0, but this isn't right if theta[0]==0...
-        }
-        return marginal[i].val;
+        var lastK, probAccum = 0;
+        marginal.forEach(function(prob, val) {
+          probAccum += prob;
+          // FIXME: if x=0 returns i=0, but this isn't right if theta[0]==0...
+          if (probAccum >= x) {return val;}
+          lastK = val;
+        });
+        return lastK;
       },
       function(params, val) {
-        var valString = JSON.stringify(val);
-
-        if (valString in marginal) {
-          return Math.log(marginal[valString].prob);
-        }
-
-        return -Infinity;
+        var prob = marginal.get(val);
+        return prob ? Math.log(prob) : -Infinity;
       },
       function(params) {
         return supp;

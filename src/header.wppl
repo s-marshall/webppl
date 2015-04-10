@@ -12,7 +12,7 @@ var discrete = function(n) {
   return sample(discreteERP, [n]);
 };
 
-var multinomial = function(ps,vs) {
+var multinomial = function(ps, vs) {
   return vs[discrete(ps)];
 };
 

@@ -14,7 +14,7 @@ var _ = require('underscore');
 var assert = require('assert');
 var util = require('../util.js');
 var erp = require('../erp.js');
-
+var hm = require('hashmap');
 
 module.exports = function(env) {
 
@@ -29,7 +29,6 @@ module.exports = function(env) {
   };
 
   function ParticleFilterRejuv(s, k, a, wpplFn, numParticles, rejuvSteps) {
-
     this.particles = [];
     this.particleIndex = 0;  // marks the active particle
     this.rejuvSteps = rejuvSteps;
@@ -37,12 +36,10 @@ module.exports = function(env) {
     this.wpplFn = wpplFn;
     this.isParticleFilterRejuvCoroutine = true;
 
-    // Move old coroutine out of the way and install this as the current
-    // handler.
+    // Move old coroutine out of the way and install this as current handler.
     this.k = k;
     this.oldCoroutine = env.coroutine;
     env.coroutine = this;
-
     this.oldStore = s; // will be reinstated at the end
 
     // Create initial particles
@@ -58,7 +55,6 @@ module.exports = function(env) {
       };
       this.particles.push(particle);
     }
-
   }
 
   ParticleFilterRejuv.prototype.run = function() {
@@ -66,7 +62,6 @@ module.exports = function(env) {
   };
 
   ParticleFilterRejuv.prototype.sample = function(s, cc, a, erp, params) {
-
     var val = erp.sample(params);
     var currScore = this.activeParticle().score;
     var choiceScore = erp.score(params, val);
@@ -136,7 +131,6 @@ module.exports = function(env) {
   }
 
   ParticleFilterRejuv.prototype.resampleParticles = function() {
-
     // Residual resampling following Liu 2008; p. 72, section 3.4.4
     var m = this.particles.length;
     var W = util.logsumexp(_.map(this.particles, function(p) {return p.weight;}));
@@ -178,7 +172,6 @@ module.exports = function(env) {
   };
 
   ParticleFilterRejuv.prototype.exit = function(s, retval) {
-
     this.activeParticle().value = retval;
 
     // Wait for all particles to reach exit before computing
@@ -190,7 +183,7 @@ module.exports = function(env) {
 
     // Final rejuvenation:
     var oldStore = this.oldStore;
-    var hist = {};
+    var hist = new hm.HashMap();
     return util.cpsForEach(
         function(particle, i, particles, nextK) {
           // make sure mhp coroutine doesn't escape:
@@ -218,9 +211,7 @@ module.exports = function(env) {
         }.bind(this),
         this.particles
     );
-
   };
-
 
   ////// Lightweight MH on a particle
 
@@ -274,7 +265,6 @@ module.exports = function(env) {
     return k(s, val);
   };
 
-
   MHP.prototype.propose = function() {
     //make a new proposal:
     this.regenFrom = Math.floor(Math.random() * this.trace.length);
@@ -288,9 +278,7 @@ module.exports = function(env) {
     return this.sample(_.clone(regen.store), regen.k, regen.name, regen.erp, regen.params, true);
   };
 
-
   MHP.prototype.exit = function(s, val) {
-
     this.val = val;
 
     // Did we like this proposal?
@@ -313,11 +301,9 @@ module.exports = function(env) {
     // all MCMC steps, not just final step
     if (this.hist !== undefined) {
       // Compute marginal distribution from (unweighted) particles
-      var k = JSON.stringify(this.val);
-      if (this.hist[k] === undefined) {
-        this.hist[k] = { prob: 0, val: this.val };
-      }
-      this.hist[k].prob += 1;
+      var lk = this.hist.get(this.val);
+      if (!lk) this.hist.set(this.val, 0);
+      this.hist.set(this.val, this.hist.get(this.val) + 1);
     }
 
     this.iterations -= 1;
@@ -339,7 +325,6 @@ module.exports = function(env) {
       return this.backToPF(newParticle);
     }
   };
-
 
   function pfr(s, cc, a, wpplFn, numParticles, rejuvSteps) {
     return new ParticleFilterRejuv(s, cc, a, wpplFn, numParticles, rejuvSteps).run();
