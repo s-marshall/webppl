@@ -264,7 +264,7 @@ module.exports = function(env) {
 
   MHP.prototype.sample = function(s, k, name, erp, params, forceSample) {
     var prev = mh.findChoice(this.oldTrace, name);
-    var reuse = !(prev === undefined || forceSample);
+    var reuse = !(prev === undefined || forceSample || !util.arrayEq(params, prev.params));
     var val = reuse ? prev.val : erp.sample(params);
     var choiceScore = erp.score(params, val);
     this.trace.push({k: k, name: name, erp: erp, params: params,
