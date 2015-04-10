@@ -66,8 +66,7 @@ module.exports = function(env) {
 
   MH.prototype.sample = function(s, k, name, erp, params, forceSample) {
     var prev = findChoice(this.oldTrace, name);
-
-    var reuse = ! (prev === undefined || forceSample);
+    var reuse = !(prev === undefined || forceSample || !util.arrayEq(params, prev.params));
     var val = reuse ? prev.val : erp.sample(params);
     var choiceScore = erp.score(params, val);
     this.trace.push(makeTrace(_.clone(s), k, name, erp, params,
@@ -123,6 +122,7 @@ module.exports = function(env) {
 
   return {
     MH: mh,
+    makeTrace: makeTrace,
     findChoice: findChoice,
     acceptProb: acceptProb
   };
