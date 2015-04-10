@@ -10,6 +10,11 @@ var erp = require('../erp.js');
 
 module.exports = function(env) {
 
+  function makeTrace(s, k, name, erp, params, currScore, choiceScore, val, reuse) {
+    return {k: k, name: name, erp: erp, params: params, score: currScore,
+            choiceScore: choiceScore, val: val, reused: reuse, store: s};
+  }
+
   function findChoice(trace, name) {
     return _.findWhere(trace, {name: name});
   }
@@ -31,7 +36,6 @@ module.exports = function(env) {
   }
 
   function MH(s, k, a, wpplFn, numIterations) {
-
     this.trace = [];
     this.oldTrace = undefined;
     this.currScore = 0;
@@ -47,7 +51,6 @@ module.exports = function(env) {
     this.wpplFn = wpplFn;
     this.s = s;
     this.a = a;
-
     this.oldCoroutine = env.coroutine;
     env.coroutine = this;
   }
@@ -61,17 +64,27 @@ module.exports = function(env) {
     return k(s);
   };
 
-  MH.prototype.sample = function(s, cont, name, erp, params, forceSample) {
+  MH.prototype.sample = function(s, k, name, erp, params, forceSample) {
     var prev = findChoice(this.oldTrace, name);
 
     var reuse = ! (prev === undefined || forceSample);
     var val = reuse ? prev.val : erp.sample(params);
     var choiceScore = erp.score(params, val);
-    this.trace.push({k: cont, name: name, erp: erp, params: params,
-      score: this.currScore, choiceScore: choiceScore,
-      val: val, reused: reuse, store: _.clone(s)});
+    this.trace.push(makeTrace(_.clone(s), k, name, erp, params,
+                              this.currScore, choiceScore, val, reuse));
     this.currScore += choiceScore;
-    return cont(s, val);
+    return k(s, val);
+  };
+
+  MH.prototype.propose = function(val) {
+    this.regenFrom = Math.floor(Math.random() * this.trace.length);
+    var regen = this.trace[this.regenFrom];
+    this.oldTrace = this.trace;
+    this.trace = this.trace.slice(0, this.regenFrom);
+    this.oldScore = this.currScore;
+    this.currScore = regen.score;
+    this.oldVal = val;
+    return this.sample(_.clone(regen.store), regen.k, regen.name, regen.erp, regen.params, true);
   };
 
   MH.prototype.exit = function(s, val) {
@@ -89,24 +102,13 @@ module.exports = function(env) {
         this.currScore = this.oldScore;
         val = this.oldVal;
       }
-
       // now add val to hist:
       var stringifiedVal = JSON.stringify(val);
       if (this.returnHist[stringifiedVal] === undefined) {
         this.returnHist[stringifiedVal] = { prob: 0, val: val };
       }
       this.returnHist[stringifiedVal].prob += 1;
-
-      // make a new proposal:
-      this.regenFrom = Math.floor(Math.random() * this.trace.length);
-      var regen = this.trace[this.regenFrom];
-      this.oldTrace = this.trace;
-      this.trace = this.trace.slice(0, this.regenFrom);
-      this.oldScore = this.currScore;
-      this.currScore = regen.score;
-      this.oldVal = val;
-
-      return this.sample(_.clone(regen.store), regen.k, regen.name, regen.erp, regen.params, true);
+      return this.propose(val); // make a new proposal
     } else {
       var dist = erp.makeMarginalERP(this.returnHist);
       var k = this.k;
