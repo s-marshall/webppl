@@ -26,23 +26,20 @@ module.exports = function(env) {
   }
 
   function sampler(s, k, name, erp, params, forceSample) {
-    var prev = this.sites.get(name);
-    console.log("prev = ", prev && prev.name);
+    var prev = this.sites[name];
     var reuse = !(prev === undefined || forceSample);
     var val = reuse ? prev.val : erp.sample(params);
-    if (forceSample && prev.val === val) { // exit early if proposed and no change
+    if (forceSample && prev && prev.val === val) { // exit early if proposed and no change
       this.sites = this.oldSites;
       this.trace = this.oldTrace;
       this.currScore = this.oldScore;
-      return this.exit(null, this.oldVal);
+      return this.exit(s, this.oldVal);
     } else {
       var choiceScore = erp.score(params, val);
-      var newScore = this.currScore + choiceScore;
-      if (newScore === -Infinity) return this.exit(s, undefined); // possible early exit
       var newEntry = makeTraceEntry(_.clone(s), k, name, erp, params,
                                     this.currScore, choiceScore, val, reuse)
-      this.currScore = newScore;
-      this.sites.set(name, newEntry);
+      this.currScore += choiceScore;
+      this.sites[name] = newEntry;
       this.trace.push(newEntry);
       if (prev === undefined) { // creating new choice
         this.fwdLP += choiceScore;
@@ -50,18 +47,17 @@ module.exports = function(env) {
         this.fwdLP += choiceScore;
         this.bwdLP += prev.choiceScore;
       }
-      return k(s, val);
+      return (this.currScore === -Infinity) ? this.exit(s) : k(s, val); // possible early exit
     }
   }
 
   function proposer(val, cloner) {
-    cloner = cloner || _.clone;
     this.regenFrom = Math.floor(Math.random() * this.trace.length);
     var regen = this.trace[this.regenFrom];
     this.oldSites = this.sites;
-    this.sites = cloner(this.sites);
-    this.oldTrace = this.trace;
-    this.trace = this.trace.slice(0, this.regenFrom);
+    this.sites = _.clone(this.sites);
+    this.oldTrace = cloner === undefined ? this.trace : cloner(this.trace);
+    this.trace = this.oldTrace.slice(0, this.regenFrom);
     this.fwdLP = 0;
     this.bwdLP = 0;
     this.oldScore = this.currScore;
@@ -71,13 +67,11 @@ module.exports = function(env) {
   }
 
   function MH(s, k, a, wpplFn, numIterations) {
-    this.oldTrace = undefined;
-    this.oldVal = undefined;
-    this.oldSites = undefined;
     this.iterations = numIterations;
     this.totalIterations = numIterations;
     this.returnHist = util.initHashMap();
     this.numAccepted = 0;
+    this.regenFrom = 0;
 
     this.wpplFn = wpplFn;
     this.k = k;
@@ -91,10 +85,9 @@ module.exports = function(env) {
   }
 
   MH.prototype.run = function() {
-    this.sites = new hm.HashMap();
+    this.sites = {};
     this.trace = [];
     this.currScore = 0;
-    this.regenFrom = 0;
     this.oldScore = -Infinity;
     this.fwdLP = 0;
     this.bwdLP = 0;
@@ -103,7 +96,7 @@ module.exports = function(env) {
 
   MH.prototype.factor = function(s, k, a, score) {
     this.currScore += score;
-    return this.currScore === -Infinity ? this.exit(s, undefined) : k(s); // possible early exit
+    return this.currScore === -Infinity ? this.exit(s) : k(s); // possible early exit
   };
 
   MH.prototype.sample = function() {return sampler.apply(this, arguments);}
@@ -115,7 +108,7 @@ module.exports = function(env) {
       if (this.iterations === this.totalIterations && this.currScore === -Infinity)
         return this.run();      // when uninitialized and failing, do rejection-sampling
       this.iterations -= 1;
-      // housekeeping
+      // housekeeping - remove dead refs and recompute backward logprob
       if (this.oldTrace !== undefined && this.currScore !== -Infinity) {
         var i, reached = {};
         for (i = this.regenFrom; i < this.trace.length; i++)
@@ -123,7 +116,7 @@ module.exports = function(env) {
         for (i = this.regenFrom; i < this.oldTrace.length; i++) {
           var v = this.oldTrace[i];
           if (reached[v.name] === undefined) {
-            this.sites.remove(v.name);
+            delete this.sites[v.name];
             this.bwdLP += v.choiceScore;
           }
         }
@@ -137,6 +130,7 @@ module.exports = function(env) {
                                   this.fwdLP);
       // if rejected, roll back trace, etc:
       if (Math.random() >= acceptance) {
+        this.sites = this.oldSites;
         this.trace = this.oldTrace;
         this.currScore = this.oldScore;
         val = this.oldVal;

@@ -39,7 +39,7 @@ module.exports = function(env) {
     };
   }
 
-  function ParticleFilterRejuv(s, k, a, wpplFn, numParticles, rejuvSteps, strict) {
+  function ParticleFilterRejuv(s, k, a, wpplFn, numParticles, rejuvSteps) {
     this.particles = [];
     this.particleIndex = 0;  // marks the active particle
     this.rejuvSteps = rejuvSteps;
@@ -62,7 +62,6 @@ module.exports = function(env) {
       this.particles.push(particle);
     }
 
-    this.strict = strict;
     // Move old coroutine out of the way and install this as current handler.
     this.k = k;
     this.oldCoroutine = env.coroutine;
@@ -150,7 +149,6 @@ module.exports = function(env) {
 
     // Allow -Infinity case (for mh initialization, in particular with few particles)
     if (avgW == -Infinity) {
-      if (this.strict) throw 'ParticleFilterRejuv: Error! All particles -Infinity';
       console.warn('ParticleFilterRejuv: resampleParticles: all ' + m + ' particles have weight -Inf');
       return;
     }
@@ -220,9 +218,6 @@ module.exports = function(env) {
   ////// Lightweight MH on a particle
 
   function MHP(backToPF, particle, baseAddress, limitAddress, wpplFn, numIterations, hist) {
-    this.oldTrace = undefined;
-    this.oldVal = undefined;
-    this.oldSites = undefined;
     this.oldStore = particle.store; // previous store at limitAddress
     this.val = particle.value;
     this.backToPF = backToPF;
@@ -231,6 +226,7 @@ module.exports = function(env) {
     this.limitAddress = limitAddress;
     this.originalParticle = particle;
     this.hist = hist;
+    this.regenFrom = 0;
 
     // Move PF coroutine out of the way and install this as current handler.
     this.oldCoroutine = env.coroutine;
@@ -238,10 +234,9 @@ module.exports = function(env) {
   }
 
   MHP.prototype.run = function() {
-    this.sites = new hm.HashMap();
+    this.sites = {};
     this.trace = this.originalParticle.trace;
     this.currScore = this.originalParticle.score;
-    this.regenFrom = 0;
     this.oldScore = -Infinity;
     this.fwdLP = 0;
     this.bwdLP = 0;
@@ -256,7 +251,7 @@ module.exports = function(env) {
   MHP.prototype.factor = function(s, k, a, sc) {
     this.currScore += sc;
     // exit if we've reached the fathest point of this particle
-    return  a == this.limitAddress ? env.exit(s) : k(s);
+    return  a === this.limitAddress ? env.exit(s) : k(s);
   };
 
   MHP.prototype.sample = function() {return mh.sampler.apply(this, arguments);}
@@ -265,47 +260,47 @@ module.exports = function(env) {
 
   MHP.prototype.exit = function(s, val) {
     this.val = val;
-    if (this.iterations === this.totalIterations && this.currScore === -Infinity)
-      return this.run();      // when uninitialized and failing, do rejection-sampling
-    this.iterations -= 1;
-    // housekeeping
-    if (this.oldTrace !== undefined && this.currScore !== -Infinity) {
-      var i, reached = {};
-      for (i = this.regenFrom; i < this.trace.length; i++)
-        reached[this.trace[i].name] = this.trace[i];
-      for (i = this.regenFrom; i < this.oldTrace.length; i++) {
-        var v = this.oldTrace[i];
-        if (reached[v.name] === undefined) {
-          this.sites.remove(v.name);
-          this.bwdLP += v.choiceScore;
+
+    if (this.iterations > 0) {
+      if (this.iterations === this.totalIterations && this.currScore === -Infinity)
+        return this.run();      // when uninitialized and failing, do rejection-sampling
+      this.iterations -= 1;
+
+      // housekeeping - remove dead refs and recompute backward logprob
+      if (this.oldTrace !== undefined && this.currScore !== -Infinity) {
+          var i, reached = {};
+        for (i = this.regenFrom; i < this.trace.length; i++)
+          reached[this.trace[i].name] = this.trace[i];
+        for (i = this.regenFrom; i < this.oldTrace.length; i++) {
+          var v = this.oldTrace[i];
+          if (reached[v.name] === undefined) {
+            delete this.sites[v.name];
+            this.bwdLP += v.choiceScore;
+          }
         }
       }
-    }
-    // Did we like this proposal?
-    var acceptance = mh.acceptProb(this.currScore,
-                                   this.oldScore,
-                                   this.trace.length,
-                                   this.oldTrace === undefined ? 0 : this.oldTrace.length,
-                                   this.bwdLP,
-                                   this.fwdLP);
-    if (Math.random() >= acceptance) { // If rejected, roll back trace, etc:
-      this.trace = this.oldTrace;
-      this.currScore = this.oldScore;
-      this.val = this.oldVal;
-    } else {
-      this.oldStore = s;
-    }
-    // If this is the final rejuvenation run, build hist from
-    // all MCMC steps, not just final step
-    if (this.hist !== undefined) {
-      // Compute marginal distribution from (unweighted) particles
-      var lk = this.hist.get(this.val);
-      if (!lk) this.hist.set(this.val, 0);
-      this.hist.set(this.val, this.hist.get(this.val) + 1);
-    }
+      // Did we like this proposal?
+      var acceptance = mh.acceptProb(this.currScore,
+                                     this.oldScore,
+                                     this.trace.length,
+                                     this.oldTrace === undefined ? 0 : this.oldTrace.length,
+                                     this.bwdLP,
+                                     this.fwdLP);
+      if (Math.random() >= acceptance) { // If rejected, roll back trace, etc:
+        this.sites = this.oldSites;
+        this.trace = this.oldTrace;
+        this.currScore = this.oldScore;
+        this.val = this.oldVal;
+      } else {
+        this.oldStore = s;
+      }
+      // If final rejuvenation run, build hist from *all* MCMC steps
+      if (this.hist !== undefined) {// Compute marginal distribution from (unweighted) particles
+        var lk = this.hist.get(this.val);
+        if (!lk) this.hist.set(this.val, 0);
+        this.hist.set(this.val, this.hist.get(this.val) + 1);
+      }
 
-    this.iterations -= 1;
-    if (this.iterations > 0) {
       return this.propose(this.val, deepCopyTrace);
     } else {
       var newParticle = {
@@ -315,7 +310,7 @@ module.exports = function(env) {
         trace: this.trace,
         completed: this.originalParticle.completed,
         value: this.val,
-        store: this.oldStore // use store from latest accepted proposal
+        store: _.clone(this.oldStore) // use store from latest accepted proposal
       };
       // Reinstate previous coroutine and return by calling original continuation:
       env.coroutine = this.oldCoroutine;
