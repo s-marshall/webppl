@@ -76,7 +76,6 @@ module.exports = function(env) {
     this.wpplFn = wpplFn;
     this.k = k;
     this.oldStore = s;
-    this.s = s;
     this.a = a;
 
     // Move old coroutine out of the way and install this as current handler.
@@ -87,6 +86,7 @@ module.exports = function(env) {
   MH.prototype.run = function() {
     this.sites = {};
     this.trace = [];
+    this.s = _.clone(this.oldStore);
     this.currScore = 0;
     this.oldScore = -Infinity;
     this.fwdLP = 0;
