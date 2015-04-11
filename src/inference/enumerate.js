@@ -10,13 +10,12 @@ var _ = require('underscore');
 var PriorityQueue = require('priorityqueuejs');
 var util = require('../util.js');
 var erp = require('../erp.js');
-var hm = require('hashmap');
 
 module.exports = function(env) {
 
   function Enumerate(store, k, a, wpplFn, maxExecutions, Q) {
     this.score = 0; // Used to track the score of the path currently being explored
-    this.marginal = new hm.HashMap(); // We will accumulate the marginal distribution here
+    this.marginal = util.initHashMap(); // We will accumulate the marginal distribution here
     this.numCompletedExecutions = 0;
     this.store = store; // will be reinstated at the end
     this.k = k;

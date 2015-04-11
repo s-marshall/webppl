@@ -7,7 +7,6 @@ var _ = require('underscore');
 var assert = require('assert');
 var util = require('../util.js');
 var erp = require('../erp.js');
-var hm = require('hashmap');
 
 module.exports = function(env) {
 
@@ -77,7 +76,7 @@ module.exports = function(env) {
     this.oldSites = undefined;
     this.iterations = numIterations;
     this.totalIterations = numIterations;
-    this.returnHist = new hm.HashMap();
+    this.returnHist = util.initHashMap();
     this.numAccepted = 0;
 
     this.wpplFn = wpplFn;

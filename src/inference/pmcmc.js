@@ -6,7 +6,6 @@
 var _ = require('underscore');
 var util = require('../util.js');
 var erp = require('../erp.js');
-var hm = require('hashmap');
 
 module.exports = function(env) {
 
@@ -35,7 +34,7 @@ module.exports = function(env) {
     this.address = a;
     this.numParticles = numParticles;
     this.resetParticles();
-    this.returnHist = new hm.HashMap();
+    this.returnHist = util.initHashMap();
   }
 
   PMCMC.prototype.run = function() {

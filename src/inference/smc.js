@@ -14,7 +14,6 @@ var _ = require('underscore');
 var assert = require('assert');
 var util = require('../util.js');
 var erp = require('../erp.js');
-var hm = require('hashmap');
 
 module.exports = function(env) {
 
@@ -195,7 +194,7 @@ module.exports = function(env) {
 
     // Final rejuvenation:
     var oldStore = this.oldStore;
-    var hist = new hm.HashMap();
+    var hist = util.initHashMap();
     return util.cpsForEach(
       function(particle, i, particles, nextK) {
         // make sure mhp coroutine doesn't escape:

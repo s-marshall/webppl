@@ -1,7 +1,12 @@
 'use strict';
 
 var _ = require('underscore');
+var hm = require('hashmap');
+hm.prototype.hash = JSON.stringify;
 
+function initHashMap() {
+  return new hm.HashMap();
+}
 
 function runningInBrowser() {
   return (typeof window !== 'undefined');
@@ -126,5 +131,6 @@ module.exports = {
   prettyJSON: prettyJSON,
   runningInBrowser: runningInBrowser,
   sum: sum,
-  histsApproximatelyEqual: histsApproximatelyEqual
+  histsApproximatelyEqual: histsApproximatelyEqual,
+  initHashMap: initHashMap
 };
