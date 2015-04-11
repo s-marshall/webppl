@@ -17,69 +17,18 @@ module.exports = function(env) {
   }
 
   function acceptProb(currScore, oldScore, traceLength, oldTraceLength, bwdLP, fwdLP) {
-    if (oldScore === -Infinity) return 1; // init
-    if (currScore === -Infinity) return 0;  // auto-reject
+    if (oldScore === -Infinity || oldTraceLength === 0) return 1; // init
+    if (currScore === -Infinity) return 0; // auto-reject
     var fw = -Math.log(oldTraceLength) + fwdLP;
     var bw = -Math.log(traceLength) + bwdLP;
-    var p = Math.exp(currScore - oldScore + bw - fw);
-    assert.ok(!isNaN(p));
-    var acceptance = Math.min(1, p);
-    return acceptance;
-  }
-
-  function acceptProb2(trace, oldTrace, regenFrom, currScore, oldScore) {
-    if (oldTrace === undefined || oldScore === -Infinity) {return 1;} // init
-    var fw = -Math.log(oldTrace.length);
-    trace.slice(regenFrom).map(function(s) {
-      fw += s.reused ? 0 : s.choiceScore;
-    });
-    var bw = -Math.log(trace.length);
-    oldTrace.slice(regenFrom).map(function(s) {
-      var nc = findChoice(trace, s.name);
-      bw += (nc && nc.reused) ? 0 : s.choiceScore;
-    });
     var p = Math.exp(currScore - oldScore + bw - fw);
     assert.ok(!isNaN(p));
     return Math.min(1, p);
   }
 
-  function MH(s, k, a, wpplFn, numIterations) {
-    this.oldTrace = undefined;
-    this.oldVal = undefined;
-    this.oldSites = undefined;
-    this.iterations = numIterations;
-    this.totalIterations = numIterations;
-    this.returnHist = new hm.HashMap();
-    this.numAccepted = 0;
-
-    this.wpplFn = wpplFn;
-    this.k = k;
-    this.oldStore = s;
-    this.s = s;
-    this.a = a;
-    // Move old coroutine out of the way and install this as current handler.
-    this.oldCoroutine = env.coroutine;
-    env.coroutine = this;
-  }
-
-  MH.prototype.run = function() {
-    this.sites = new hm.HashMap();
-    this.trace = [];
-    this.currScore = 0;
-    this.regenFrom = 0;
-    this.oldScore = -Infinity;
-    this.fwdLP = 0;
-    this.bwdLP = 0;
-    return this.wpplFn(this.s, env.exit, this.a);
-  };
-
-  MH.prototype.factor = function(s, k, a, score) {
-    this.currScore += score;
-    return this.currScore === -Infinity ? this.exit(s, undefined) : k(s); // possible early exit
-  };
-
-  MH.prototype.sample = function(s, k, name, erp, params, forceSample) {
+  function sampler(s, k, name, erp, params, forceSample) {
     var prev = this.sites.get(name);
+    console.log("prev = ", prev && prev.name);
     var reuse = !(prev === undefined || forceSample);
     var val = reuse ? prev.val : erp.sample(params);
     if (forceSample && prev.val === val) { // exit early if proposed and no change
@@ -104,13 +53,14 @@ module.exports = function(env) {
       }
       return k(s, val);
     }
-  };
+  }
 
-  MH.prototype.propose = function(val) {
+  function proposer(val, cloner) {
+    cloner = cloner || _.clone;
     this.regenFrom = Math.floor(Math.random() * this.trace.length);
     var regen = this.trace[this.regenFrom];
     this.oldSites = this.sites;
-    this.sites = _.clone(this.sites);
+    this.sites = cloner(this.sites);
     this.oldTrace = this.trace;
     this.trace = this.trace.slice(0, this.regenFrom);
     this.fwdLP = 0;
@@ -119,12 +69,52 @@ module.exports = function(env) {
     this.currScore = regen.score;
     this.oldVal = val;
     return this.sample(_.clone(regen.store), regen.k, regen.name, regen.erp, regen.params, true);
+  }
+
+  function MH(s, k, a, wpplFn, numIterations) {
+    this.oldTrace = undefined;
+    this.oldVal = undefined;
+    this.oldSites = undefined;
+    this.iterations = numIterations;
+    this.totalIterations = numIterations;
+    this.returnHist = new hm.HashMap();
+    this.numAccepted = 0;
+
+    this.wpplFn = wpplFn;
+    this.k = k;
+    this.oldStore = s;
+    this.s = s;
+    this.a = a;
+
+    // Move old coroutine out of the way and install this as current handler.
+    this.oldCoroutine = env.coroutine;
+    env.coroutine = this;
+  }
+
+  MH.prototype.run = function() {
+    this.sites = new hm.HashMap();
+    this.trace = [];
+    this.currScore = 0;
+    this.regenFrom = 0;
+    this.oldScore = -Infinity;
+    this.fwdLP = 0;
+    this.bwdLP = 0;
+    return this.wpplFn(this.s, env.exit, this.a);
   };
+
+  MH.prototype.factor = function(s, k, a, score) {
+    this.currScore += score;
+    return this.currScore === -Infinity ? this.exit(s, undefined) : k(s); // possible early exit
+  };
+
+  MH.prototype.sample = function() {return sampler.apply(this, arguments);}
+
+  MH.prototype.propose = function() {return proposer.apply(this, arguments);}
 
   MH.prototype.exit = function(s, val) {
     if (this.iterations > 0) {
       if (this.iterations === this.totalIterations && this.currScore === -Infinity)
-        return this.run();      // when uninitialized, do rejection-sampling
+        return this.run();      // when uninitialized and failing, do rejection-sampling
       this.iterations -= 1;
       // housekeeping
       if (this.oldTrace !== undefined && this.currScore !== -Infinity) {
@@ -175,6 +165,8 @@ module.exports = function(env) {
   return {
     MH: mh,
     makeTraceEntry: makeTraceEntry,
+    sampler: sampler,
+    proposer: proposer,
     acceptProb: acceptProb
   };
 
