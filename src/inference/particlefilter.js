@@ -24,7 +24,6 @@ module.exports = function(env) {
   }
 
   function ParticleFilter(s, k, a, wpplFn, numParticles, strict) {
-
     this.particles = [];
     this.particleIndex = 0;  // marks the active particle
 
@@ -42,12 +41,10 @@ module.exports = function(env) {
     }
 
     this.strict = strict;
-    // Move old coroutine out of the way and install this as the current
-    // handler.
+    // Move old coroutine out of the way and install this as current handler.
     this.k = k;
     this.oldCoroutine = env.coroutine;
     env.coroutine = this;
-
     this.oldStore = _.clone(s); // will be reinstated at the end
   };
 
@@ -110,10 +107,8 @@ module.exports = function(env) {
     var W = util.logsumexp(_.map(this.particles, function(p) {return p.weight;}));
     var avgW = W - Math.log(m);
 
-    if (avgW == -Infinity) {      // debugging: check if NaN
-      if (this.strict) {
-        throw 'Error! All particles -Infinity';
-      }
+    if (avgW == -Infinity) {
+      if (this.strict) throw 'ParticleFilter: Error! All particles -Infinity';
     } else {
       // Compute list of retained particles
       var retainedParticles = [];
@@ -129,23 +124,19 @@ module.exports = function(env) {
             }});
       // Compute new particles
       var numNewParticles = m - retainedParticles.length;
-      var newParticles = [];
-      var j;
+      var j, newParticles = [];
       for (var i = 0; i < numNewParticles; i++) {
         j = erp.multinomialSample(newExpWeights);
         newParticles.push(copyParticle(this.particles[j]));
       }
-
       // Particles after update: Retained + new particles
       this.particles = newParticles.concat(retainedParticles);
     }
-
     // Reset all weights
     _.each(this.particles, function(particle) {particle.weight = avgW;});
   };
 
   ParticleFilter.prototype.exit = function(s, retval) {
-
     this.activeParticle().value = retval;
     this.activeParticle().completed = true;
     // this should be negative if there are no valid next particles
@@ -168,13 +159,10 @@ module.exports = function(env) {
              hist.set(k, hist.get(k) + 1);
            });
     var dist = erp.makeMarginalERP(hist);
-
     // Save estimated normalization constant in erp (average particle weight)
     dist.normalizationConstant = this.particles[0].weight;
-
     // Reinstate previous coroutine:
     env.coroutine = this.oldCoroutine;
-
     // Return from particle filter by calling original continuation:
     return this.k(this.oldStore, dist);
   };
