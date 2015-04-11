@@ -99,9 +99,13 @@ module.exports = function(env) {
     return this.currScore === -Infinity ? this.exit(s) : k(s); // possible early exit
   };
 
-  MH.prototype.sample = function() {return sampler.apply(this, arguments);}
+  MH.prototype.sample = function() {
+    return sampler.apply(this, arguments);
+  };
 
-  MH.prototype.propose = function() {return proposer.apply(this, arguments);}
+  MH.prototype.propose = function() {
+    return proposer.apply(this, arguments);
+  };
 
   MH.prototype.exit = function(s, val) {
     if (this.iterations > 0) {
