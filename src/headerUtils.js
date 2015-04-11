@@ -1,6 +1,6 @@
 'use strict';
 
-var hm = require('hashmap');
+var util = require('./util.js');
 
 module.exports = function(env) {
 
@@ -10,11 +10,10 @@ module.exports = function(env) {
 
   // Caching for a wppl function f.
   //
-  // Caution: if f isn't deterministic weird stuff can happen, since
-  // caching is across all uses of f, even in different execution
-  // paths.
+  // Caution!: if `f` isn't deterministic weird stuff can happen.
+  // caching is across all uses of `f`, even in different execution paths.
   function cache(s, k, a, f) {
-    var c = new hm.HashMap();
+    var c = util.initHashMap();
     var cf = function(s, k, a) {
       var args = Array.prototype.slice.call(arguments, 3);
       var lookup = c.get(args);

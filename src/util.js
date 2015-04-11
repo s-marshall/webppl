@@ -1,8 +1,14 @@
 'use strict';
 
 var _ = require('underscore');
+// https://github.com/BorisKozo/jsHash --- alternate library
 var hm = require('hashmap');
-hm.prototype.hash = JSON.stringify;
+// hm.prototype.hash = JSON.stringify; /// --- default behaviour
+var objHash = require('object-hash');
+var oldHash = hm.prototype.hash;
+hm.prototype.hash = function(v) {
+  return this.type(v) === 'object' ? objHash.sha1(v) : oldHash.call(this, v);
+};
 
 function initHashMap() {
   return new hm.HashMap();
