@@ -39,8 +39,7 @@ module.exports = function(env) {
   }
 
   function AsyncPF(s, k, a, wpplFn, numParticles, bufferSize) {
-
-    this.numParticles = 0;      // K_0 -- initialized here, set in runProcess
+    this.numParticles = 0;      // K_0 -- initialized here, set in run
     this.bufferSize = bufferSize == undefined ? numParticles : bufferSize; // \rho
     this.initNumParticles = Math.floor(this.bufferSize * (1 / 2));         // \rho_0
     this.exitK = function(s) {return wpplFn(s, env.exit, a);};
@@ -59,12 +58,9 @@ module.exports = function(env) {
     this.oldCoroutine = env.coroutine;
     env.coroutine = this;
     this.oldStore = _.clone(s); // will be reinstated at the end
-
-    // start running
-    return this.runProcess(numParticles);
   };
 
-  AsyncPF.prototype.runProcess = function(numP) {
+  AsyncPF.prototype.run = function(numP) {
     // allows for continuing pf
     this.numParticles = (numP == undefined) ? this.numParticles : this.numParticles + numP;
 
@@ -99,7 +95,7 @@ module.exports = function(env) {
     var newFI = fi == undefined ? 0 : fi + 1;
     this.activeParticle.factorIndex = newFI;
     this.branching(newFI);      // compute branching and #children
-    return this.runProcess();   // return to runProcess
+    return this.run();          // return to run
   };
 
   AsyncPF.prototype.branching = function(factorIndex) {
@@ -170,7 +166,7 @@ module.exports = function(env) {
     this.hist[k].prob += 1;
 
     if (this.exitedParticles < this.numParticles) {
-      return this.runProcess();
+      return this.run();
     } else {
       var dist = erp.makeMarginalERP(this.hist);
 
@@ -187,7 +183,7 @@ module.exports = function(env) {
         currCoroutine.oldCoroutine = env.coroutine;
         env.coroutine = currCoroutine;
         currCoroutine.oldStore = _.clone(s); // will be reinstated at the end
-        return currCoroutine.runProcess(numP);
+        return currCoroutine.run(numP);
       };
 
       // Reinstate previous coroutine:
@@ -198,7 +194,7 @@ module.exports = function(env) {
   };
 
   function asyncPF(s, cc, a, wpplFn, numParticles, bufferSize) {
-    return new AsyncPF(s, cc, a, wpplFn, numParticles, bufferSize);
+    return new AsyncPF(s, cc, a, wpplFn, numParticles, bufferSize).run(numParticles);
   }
 
   return {
