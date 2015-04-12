@@ -34,7 +34,7 @@ module.exports = function(env) {
     this.address = a;
     this.numParticles = numParticles;
     this.resetParticles();
-    this.returnHist = {};
+    this.returnHist = util.initHashMap();
   }
 
   PMCMC.prototype.run = function() {
@@ -162,11 +162,10 @@ module.exports = function(env) {
       if (this.sweep > 0) {
         this.particles.concat(this.retainedParticle).forEach(
             function(particle) {
-              var k = JSON.stringify(particle.value);
-              if (this.returnHist[k] === undefined) {
-                this.returnHist[k] = { prob: 0, val: particle.value };
-              }
-              this.returnHist[k].prob += 1;
+              var val = particle.value;
+              var lk = this.returnHist.get(val);
+              if (!lk) this.returnHist.set(val, 0);
+              this.returnHist.set(val, this.returnHist.get(val) + 1);
             }.bind(this));
       }
 

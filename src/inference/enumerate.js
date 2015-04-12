@@ -11,12 +11,11 @@ var PriorityQueue = require('priorityqueuejs');
 var util = require('../util.js');
 var erp = require('../erp.js');
 
-
 module.exports = function(env) {
 
   function Enumerate(store, k, a, wpplFn, maxExecutions, Q) {
     this.score = 0; // Used to track the score of the path currently being explored
-    this.marginal = {}; // We will accumulate the marginal distribution here
+    this.marginal = util.initHashMap(); // We will accumulate the marginal distribution here
     this.numCompletedExecutions = 0;
     this.store = store; // will be reinstated at the end
     this.k = k;
@@ -98,15 +97,12 @@ module.exports = function(env) {
   //                      return ret;});
   // };
 
-
   Enumerate.prototype.exit = function(s, retval) {
     // We have reached an exit of the computation. Accumulate probability into retval bin.
-    var r = JSON.stringify(retval);
     if (this.score !== -Infinity) {
-      if (this.marginal[r] === undefined) {
-        this.marginal[r] = {prob: 0, val: retval};
-      }
-      this.marginal[r].prob += Math.exp(this.score);
+      var lk = this.marginal.get(retval);
+      if (!lk) this.marginal.set(retval, 0);
+      this.marginal.set(retval, this.marginal.get(retval) + Math.exp(this.score));
     }
 
     // Increment the completed execution counter

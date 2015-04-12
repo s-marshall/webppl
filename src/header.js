@@ -34,9 +34,7 @@ var variational = require('./inference/variational.js');
 var headerUtils = require('./headerUtils.js');
 
 module.exports = function(env) {
-
   // Inference interface
-
   env.coroutine = {
     sample: function(s, cc, a, erp, params) {
       return cc(s, erp.sample(params));
@@ -77,7 +75,6 @@ module.exports = function(env) {
   };
 
   // Exports
-
   var exports = {};
 
   function addExports(obj) {
@@ -111,5 +108,4 @@ module.exports = function(env) {
   addExports(erp);
 
   return exports;
-
 };

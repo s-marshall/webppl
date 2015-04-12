@@ -12,6 +12,10 @@ var discrete = function(n) {
   return sample(discreteERP, [n]);
 };
 
+var multinomial = function(ps, vs) {
+  return vs[discrete(ps)];
+};
+
 var gaussian = function(mu, sigma) {
   return sample(gaussianERP, [mu, sigma]);
 };
@@ -330,5 +334,3 @@ var sort = function(l, pred, key) {
 var sortOn = function(l, key, pred) {
   return _sort(l, (pred == undefined ? lt : pred), key);
 };
-
-

@@ -171,6 +171,7 @@ var testNames = [
   'testParticleFilterStore',
   'testAsyncPF',
   'testAsyncPFStore',
+  'testPFVarFactors',
   'testMH',
   'testMHStore',
   'testPMCMC',
