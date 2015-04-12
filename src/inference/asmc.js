@@ -51,7 +51,7 @@ module.exports = function(env) {
 
     this.obsWeights = {};
     this.exitedParticles = 0;
-    this.hist = {};
+    this.hist = util.initHashMap();
 
     // Move old coroutine out of the way and install this as current handler.
     this.k = k;
@@ -161,9 +161,9 @@ module.exports = function(env) {
     this.activeParticle.weight += Math.log(this.activeParticle.multiplicity);
     this.exitedParticles += 1;
 
-    var k = JSON.stringify(retval);
-    if (this.hist[k] === undefined) this.hist[k] = { prob: 0, val: retval };
-    this.hist[k].prob += 1;
+    var lk = this.hist.get(retval);
+    if (!lk) this.hist.set(retval, 0);
+    this.hist.set(retval, this.hist.get(retval) + 1);
 
     if (this.exitedParticles < this.numParticles) {
       return this.run();
@@ -171,10 +171,10 @@ module.exports = function(env) {
       var dist = erp.makeMarginalERP(this.hist);
 
       var lastFactorIndex = this.activeParticle.factorIndex;
-      var lk = this.obsWeights[lastFactorIndex];
-      dist.normalizationConstant = Math.log(lk.length) - // K_n
-          Math.log(this.numParticles) +                  // K_0
-          lk[lk.length - 1].wbar;                        // Wbar^k_n
+      var olk = this.obsWeights[lastFactorIndex];
+      dist.normalizationConstant = Math.log(olk.length) - // K_n
+          Math.log(this.numParticles) +                   // K_0
+          olk[olk.length - 1].wbar;                       // Wbar^k_n
 
       // allow for continuing pf
       var currCoroutine = this;
