@@ -33,6 +33,8 @@ var asmc = require('./inference/asmc.js');
 var variational = require('./inference/variational.js');
 var headerUtils = require('./headerUtils.js');
 
+var HoG = require('hog-descriptor');
+
 module.exports = function(env) {
   // Inference interface
   env.coroutine = {
@@ -92,7 +94,8 @@ module.exports = function(env) {
   addExports({
     _: _,
     util: util,
-    assert: assert
+    assert: assert,
+    HoG: HoG
   });
 
   // Inference functions and header utils
