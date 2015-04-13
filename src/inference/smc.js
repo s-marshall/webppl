@@ -19,20 +19,12 @@ module.exports = function(env) {
 
   var mh = require('./mh.js')(env);
 
-  var deepCopyTrace = function(trace) {
-    return trace.map(function(obj) {
-      var objCopy = _.clone(obj);
-      objCopy.store = _.clone(obj.store);
-      return objCopy;
-    });
-  };
-
   function copyPFRParticle(particle) {
     return {
       continuation: particle.continuation,
       weight: particle.weight,
       score: particle.score,
-      trace: deepCopyTrace(particle.trace),
+      trace: mh.deepCopyTrace(particle.trace),
       completed: particle.completed,
       value: particle.value,
       store: _.clone(particle.store)
@@ -244,7 +236,7 @@ module.exports = function(env) {
       env.coroutine = this.oldCoroutine;
       return this.backToPF(this.originalParticle);
     } else { // FIXME: on final exit, will this end up calling the MH exit correctly?
-      return this.propose(this.val, deepCopyTrace);
+      return this.propose(this.val, mh.deepCopyTrace);
     }
   };
 
@@ -305,7 +297,7 @@ module.exports = function(env) {
         this.hist.set(this.val, this.hist.get(this.val) + 1);
       }
 
-      return this.propose(this.val, deepCopyTrace);
+      return this.propose(this.val, mh.deepCopyTrace);
     } else {
       var newParticle = {
         continuation: this.originalParticle.continuation,

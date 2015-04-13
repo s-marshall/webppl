@@ -15,6 +15,14 @@ module.exports = function(env) {
       choiceScore: choiceScore, val: val, reused: reuse, store: s};
   }
 
+  var deepCopyTrace = function(trace) {
+    return trace.map(function(obj) {
+      var objCopy = _.clone(obj);
+      objCopy.store = _.clone(obj.store);
+      return objCopy;
+    });
+  };
+
   function acceptProb(currScore, oldScore, traceLength, oldTraceLength, bwdLP, fwdLP) {
     if (oldScore === -Infinity || oldTraceLength === 0) return 1; // init
     if (currScore === -Infinity) return 0; // auto-reject
@@ -162,6 +170,7 @@ module.exports = function(env) {
   return {
     MH: mh,
     makeTraceEntry: makeTraceEntry,
+    deepCopyTrace: deepCopyTrace,
     sampler: sampler,
     proposer: proposer,
     acceptProb: acceptProb
