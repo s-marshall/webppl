@@ -25,19 +25,21 @@ module.exports = function(env) {
       weight: particle.weight,
       score: particle.score,
       trace: mh.deepCopyTrace(particle.trace),
+      restrictedRegenFrom: particle.restrictedRegenFrom,
       completed: particle.completed,
       value: particle.value,
       store: _.clone(particle.store)
     };
   }
 
-  function ParticleFilterRejuv(s, k, a, wpplFn, numParticles, rejuvSteps) {
+  function ParticleFilterRejuv(s, k, a, wpplFn, numParticles, rejuvSteps, restrict) {
     this.particles = [];
     this.particleIndex = 0;  // marks the active particle
     this.rejuvSteps = rejuvSteps;
     this.baseAddress = a;
     this.wpplFn = wpplFn;
     this.isParticleFilterRejuvCoroutine = true;
+    this.restrict = restrict || false;
 
     // Create initial particles
     var exitK = function(s) {return wpplFn(s, env.exit, a);};
@@ -47,6 +49,7 @@ module.exports = function(env) {
         weight: 0,
         score: 0,
         trace: [],
+        restrictedRegenFrom: 0,
         completed: false,
         value: undefined,
         store: _.clone(s)
@@ -91,8 +94,11 @@ module.exports = function(env) {
           function(particle, i, particles, nextK) {
             // make sure mhp coroutine doesn't escape:
             assert(env.coroutine.isParticleFilterRejuvCoroutine);
-            return new MHP(function(p) {particles[i] = p; return nextK();},
-                         particle, this.baseAddress, a, this.wpplFn, this.rejuvSteps).run();
+            return new MHP(function(p) {
+              if (env.coroutine.restrict) p.restrictedRegenFrom = p.trace.length;
+              particles[i] = p;
+              return nextK();
+            }, particle, this.baseAddress, a, this.wpplFn, this.rejuvSteps).run();
           }.bind(this),
           function() {
             // variable #factors: resampling can kill all continuing particles
@@ -189,6 +195,7 @@ module.exports = function(env) {
         function(particle, i, particles, nextK) {
           // make sure mhp coroutine doesn't escape:
           assert(env.coroutine.isParticleFilterRejuvCoroutine);
+          particle.restrictedRegenFrom = 0; // no restrictions on final run
           return new MHP(function(p) {particles[i] = p; return nextK();},
                        particle, this.baseAddress, undefined,
                        this.wpplFn, this.rejuvSteps, hist).run();
@@ -219,6 +226,8 @@ module.exports = function(env) {
     this.originalParticle = particle;
     this.hist = hist;
     this.regenFrom = 0;
+    this.prefixTraceLength = particle.restrictedRegenFrom;
+    this.remainingTrace = particle.trace.slice(this.prefixTraceLength);
 
     // Move PF coroutine out of the way and install this as current handler.
     this.oldCoroutine = env.coroutine;
@@ -227,11 +236,18 @@ module.exports = function(env) {
 
   MHP.prototype.run = function() {
     this.sites = {};
-    this.trace = this.originalParticle.trace;
+    // if restricted, from first erp after last factor, else from beginning
+    this.trace = this.remainingTrace;
     this.currScore = this.originalParticle.score;
     this.oldScore = -Infinity;
     this.fwdLP = 0;
     this.bwdLP = 0;
+
+    if (this.oldCoroutine.restrict && (this.currScore == -Infinity || this.trace.length == 0)) {
+      console.log("exiting early because of pf score!");
+      env.coroutine = this.oldCoroutine;
+      return this.backToPF(this.originalParticle);
+    };
     if (this.iterations === 0) {
       env.coroutine = this.oldCoroutine;
       return this.backToPF(this.originalParticle);
@@ -278,8 +294,10 @@ module.exports = function(env) {
       // Did we like this proposal?
       var acceptance = mh.acceptProb(this.currScore,
                                      this.oldScore,
-                                     this.trace.length,
-                                     this.oldTrace === undefined ? 0 : this.oldTrace.length,
+                                     this.trace.length + this.prefixTraceLength,
+                                     this.oldTrace === undefined ?
+                                     0 :
+                                     this.oldTrace.length + this.prefixTraceLength,
                                      this.bwdLP,
                                      this.fwdLP);
       if (Math.random() >= acceptance) { // If rejected, roll back trace, etc:
@@ -303,7 +321,9 @@ module.exports = function(env) {
         continuation: this.originalParticle.continuation,
         weight: this.originalParticle.weight,
         score: this.currScore,
-        trace: this.trace,
+        // splice trace from first erp after last factor into original trace
+        trace: this.originalParticle.trace.slice(0, this.prefixTraceLength).concat(this.trace),
+        restrictedRegenFrom: this.originalParticle.restrictedRegenFrom,
         completed: this.originalParticle.completed,
         value: this.val,
         store: _.clone(this.oldStore) // use store from latest accepted proposal
@@ -314,8 +334,8 @@ module.exports = function(env) {
     }
   };
 
-  function pfr(s, cc, a, wpplFn, numParticles, rejuvSteps) {
-    return new ParticleFilterRejuv(s, cc, a, wpplFn, numParticles, rejuvSteps).run();
+  function pfr(s, cc, a, wpplFn, numParticles, rejuvSteps, restrict) {
+    return new ParticleFilterRejuv(s, cc, a, wpplFn, numParticles, rejuvSteps, restrict).run();
   }
 
   return {
