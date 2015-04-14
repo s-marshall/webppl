@@ -243,8 +243,10 @@ module.exports = function(env) {
     this.fwdLP = 0;
     this.bwdLP = 0;
 
+    // exit without doing rejuvenation when in restricted mode if:
+    // a. the score coming in here is -Infinity or
+    // b. there are no erps to sample between last and current factor
     if (this.oldCoroutine.restrict && (this.currScore == -Infinity || this.trace.length == 0)) {
-      console.log("exiting early because of pf score!");
       env.coroutine = this.oldCoroutine;
       return this.backToPF(this.originalParticle);
     };
