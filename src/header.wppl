@@ -141,6 +141,7 @@ var third = function(xs) { return xs[2]; };
 var fourth = function(xs) { return xs[3]; };
 var secondLast = function(xs) { return xs[xs.length - 2]; };
 var last = function(xs) { return xs[xs.length - 1]; };
+var rest = function(xs) { return xs.slice(1); };
 
 var map = function(fn, ar) {
   return ar.length == 0 ? [] : [fn(ar[0])].concat(map(fn, ar.slice(1)));
@@ -224,6 +225,16 @@ var find = function(f, ar) {
 var remove = function(a, ar) {
   return filter(function(e) { return a != e;}, ar);
 };
+
+var insertAt = function(ar, i, x) {
+  return ar.slice(0, i).concat([x]).concat(ar.slice(i));
+}
+var removeAt = function(ar, i) {
+  return ar.slice(0, i).concat(ar.slice(i+1));
+}
+var replaceAt = function(ar, i, x) {
+  return ar.slice(0, i).concat([x]).concat(ar.slice(i+1));
+}
 
 var drop = function(n, ar) { return n > ar.length ? [] : ar.slice(n); };
 var take = function(n, ar) { return n >= ar.length ? ar : ar.slice(0, n); };
