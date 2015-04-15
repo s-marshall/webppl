@@ -117,6 +117,43 @@ function histsApproximatelyEqual(hist, expectedHist, tolerance) {
   return allOk;
 }
 
+// deterministic non-cps cache
+function cache(f) {
+  var c = initHashMap();
+  var cf = function() {
+    var args = Array.prototype.slice.call(arguments);
+    var lookup = c.get(args);
+    if (lookup) {
+      return lookup;
+    } else {
+      var res = f.apply(this, args);
+      c.set(args, res);
+      return res;
+    }
+  };
+  return cf;
+}
+
+// stochastic non-cps cache only for erp returning fns
+// needswork: agglomerate erps
+function stochasticCache(f, p) {
+  p = p || 0.05;                // recompute probability
+  var c = initHashMap();
+  var cf = function() {
+    var args = Array.prototype.slice.call(arguments);
+    var lookup = c.get(args);
+    if (lookup && (Math.random() < 1 - p)) {
+      return lookup;
+    } else {
+      console.log(c);
+      var res = f.apply(this, args);
+      c.set(args, res);
+      return res;
+    }
+  };
+  return cf;
+}
+
 module.exports = {
   cpsForEach: cpsForEach,
   gensym: gensym,
@@ -131,5 +168,6 @@ module.exports = {
   runningInBrowser: runningInBrowser,
   sum: sum,
   histsApproximatelyEqual: histsApproximatelyEqual,
-  initHashMap: initHashMap
+  initHashMap: initHashMap,
+  cache: cache
 };

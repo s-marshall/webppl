@@ -27,6 +27,65 @@ function ERP(sampler, scorer, supporter, grad) {
   this.grad = grad;
 }
 
+ERP.prototype.KL = util.cache(function(qERP) {
+  if (!(this.support && qERP.support))
+    throw "Cannot compute KL with/on continuous distributions"
+  var pSupp = this.support([]);
+  var kl = 0;
+  for (var i = 0; i < pSupp.length; i++) {
+    var pi = pSupp[i];
+    var p = this.score([], pi);
+    if (p !== -Infinity) {
+      var q = qERP.score([], pi);
+      kl += (Math.exp(p) * (p - q));
+    }
+  }
+  return kl;
+});
+
+ERP.prototype.reMarginalizeERP = function(projection) {
+  var supp = this.support([]);
+  var scorer = this.score;
+  var proj = supp.map(function(s){
+    // this is a hack because of cps from wppl
+    return [projection({}, function(s, v){return v}, undefined, s)(),
+            Math.exp(scorer([],s))]
+  });
+  var hm = util.initHashMap();
+  for (var i = 0; i < proj.length; i++) {
+    var lk = hm.get(proj[i][0]);
+    hm.set(proj[i][0], (lk ? lk : 0) + proj[i][1])
+  }
+  var newSupp = [];
+  var mapEst = {val: undefined, prob: 0};
+  hm.forEach(function(prob, val) {
+    if (prob > mapEst.prob) mapEst = {val: val, prob: prob}
+    newSupp.push(val);
+  });
+  // Make an ERP:
+  var dist = new ERP(
+      function(params) {
+        var x = Math.random();
+        var lastK, probAccum = 0;
+        hm.forEach(function(prob, val) {
+          probAccum += prob;
+          // FIXME: if x=0 returns i=0, but this isn't right if theta[0]==0...
+          if (probAccum >= x) {return val;}
+          lastK = val;
+        });
+        return lastK;
+      },
+      function(params, val) {
+        var prob = hm.get(val);
+        return prob ? Math.log(prob) : -Infinity;
+      },
+      function(params) {
+        return newSupp;
+      });
+  dist.MAP = mapEst;
+  return dist;
+}
+
 var uniformERP = new ERP(
     function uniformSample(params) {
       var u = Math.random();
