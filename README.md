@@ -79,15 +79,15 @@ To debug WebPPL programs running in Chrome, enable [pause on JavaScript exceptio
 
     // 1. Install node-inspector (only need to do this once)
     npm install -g node-inspector
-    
+
     // 2. Compile your webppl program to Javascript
     webppl my-program.wppl --compile --out my-program.js
-    
+
     // 3. Add "debugger;" statements to my-program.js to indicate breakpoints
-    
+
     // 4. Run your compiled program in debug mode (will pause automatically)
     node --debug-brk my-program.js
-    
+
     // 5. (In separate terminal:) Load node inspector, resume program execution in node-inspector
     node-inspector
 
@@ -109,20 +109,20 @@ Using the example of reading and writing CSV files:
         npm install -g babyparse
 
 2. Write a Javascript file that exports the functions you want to use:
-    
+
         // simpleCSV.js
-        
+
         var fs = require('fs');
         var babyparse = require('babyparse');
-        
+
         function readCSV(filename){
           return babyparse.parse(fs.readFileSync(filename, 'utf8'));
         };
-        
+
         function writeCSV(jsonCSV, filename){
           fs.writeFileSync(filename, babyparse.unparse(jsonCSV) + "\n");
         }
-        
+
         module.exports = {
           readCSV: readCSV,
           writeCSV: writeCSV
@@ -131,7 +131,7 @@ Using the example of reading and writing CSV files:
 2. Write a WebPPL file that uses your new functions (with module qualifier):
 
         // csvTest.wppl
-        
+
         var myCSVdata = simpleCSV.readCSV('myinput.csv');
         var myNewData = myCSVdata.data.concat([["foo", 3], ["bar", 10]]);
         simpleCSV.writeCSV(myNewData, 'myoutput.csv');
@@ -147,11 +147,11 @@ Sometimes, it is useful to define external functions that are able to access the
 1. Write a Javascript file that exports the functions you want to use:
 
         // addressHeader.js
-        
+
         function myGetAddress(store, k, address){
-          k(store, address);
+          return k(store, address);
         };
-        
+
         module.exports = {
           myGetAddress: myGetAddress
         };
@@ -166,7 +166,7 @@ Sometimes, it is useful to define external functions that are able to access the
           }
           bar()
         }
-        
+
         foo()
 
 3. Run your WebPPL file with `require-header` command line flag:
@@ -187,11 +187,11 @@ Sometimes, it is useful to define external functions that are able to access the
         git checkout master
         git merge dev
         grunt
-    
+
 3. Create git tag for new version
 
-        git tag v0.0.1 // use version printed by "npm version" command above    
-    
+        git tag v0.0.1 // use version printed by "npm version" command above
+
 4. Push to remotes and npm
 
         git push origin dev

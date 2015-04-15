@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-"use strict";
+'use strict';
 
 var fs = require('fs');
 var webppl = require('./src/main');
@@ -20,18 +20,6 @@ function requireAsGlobal(modulePath) {
   }
 }
 
-function addModulePaths(names) {
-  var namesWithPaths = [];
-  for (var i = 0; i < names.length; i++) {
-    var name = names[i];
-    namesWithPaths.push({
-      name: getModuleName(name),
-      path: getModulePath(name)
-    });
-  }
-  return namesWithPaths;
-}
-
 function isErp(x) {
   return (x && (x.score != undefined) && (x.sample != undefined));
 }
@@ -44,9 +32,15 @@ function printWebPPLValue(x) {
   if (isErpWithSupport(x)) {
     console.log('ERP:');
     var erpValues = x.support([])
-        .map(function(v) {return [JSON.stringify(v), Math.exp(x.score([], v))]})
-        .sort(function(a, b) {return b[1] - a[1]});
-    erpValues.forEach(function(val) {console.log('    ' + val[0] + ': ' + val[1]);});
+      .map(function(v) {
+          return [JSON.stringify(v), Math.exp(x.score([], v))]
+        })
+      .sort(function(a, b) {
+          return b[1] - a[1]
+        });
+    erpValues.forEach(function(val) {
+      console.log('    ' + val[0] + ': ' + val[1]);
+    });
   } else {
     console.log(x);
   }
@@ -73,16 +67,21 @@ function getRequirePath(req) {
   }
 }
 
-function run(code, requires, headers, verbose) {
-  headers.forEach(
-      function(header) {
-        requireAsGlobal(header.path);
-      });
+function run(code, requires, verbose) {
   requires.forEach(
-      function(req) {
+    function(req) {
+      if (req.type === 'require-header'){
+        requireAsGlobal(req.path);
+      } else if (req.type === 'require-js'){
         global[req.name] = require(req.path);
-      });
-  webppl.webppl_eval(
+      } else if (req.type === 'require-wppl') {
+        var reqCode = fs.readFileSync(req.path, 'utf8');
+        code = reqCode + ';' + code;
+      } else {
+        throw 'unknown require type: ' + req.type;
+      }
+    });
+  webppl.webpplEval(
       function(s, x) {
         console.log('\n* Program return value:\n');
         printWebPPLValue(x);
@@ -91,7 +90,7 @@ function run(code, requires, headers, verbose) {
       verbose);
 }
 
-function compile(code, requires, headers, verbose, outputFile) {
+function compile(code, requires, verbose, outputFile) {
   var compiledCode = '';
   requires.push({
     name: 'webppl', // this makes header.js exports globally available
@@ -115,6 +114,7 @@ function compile(code, requires, headers, verbose, outputFile) {
       isErp.toString() + '\n' +
       isErpWithSupport.toString() + '\n' +
       printWebPPLValue.toString() + '\n' +
+      requireAsGlobal.toString() + '\n' +
       'var topK = function(s, x){ \n' +
       " console.log('\\n* Program return value:\\n'); \n" +
       ' printWebPPLValue(x); \n};\n\n');
@@ -162,7 +162,7 @@ function main() {
   // Load webppl code
   var programFile = argv._[0];
   console.log('Processing', programFile);
-  var code = fs.readFileSync(programFile);
+  var code = fs.readFileSync(programFile, 'utf8');
 
   var requireTypes = ['require-js', 'require-wppl', 'require-header'];
   var requires = [];
@@ -171,19 +171,18 @@ function main() {
         asArray(argv[requireType]).forEach(
             function(id) {
               requires.push(
-                  {name: getRequireName(id),
+                  {
+                    name: getRequireName(id),
                     path: getRequirePath(id),
                     type: requireType
-                  });});
+                  });
+            });
       });
-
-  var requires = addModulePaths(asArray(argv.require));
-  var headers = addModulePaths(asArray(argv.header));
 
   var processCode = argv.compile ? compile : run;
   var outputFile = argv.out ? argv.out : 'tmp.js';
 
-  processCode(code, requires, headers, argv.verbose, outputFile);
+  processCode(code, requires, argv.verbose, outputFile);
 }
 
 main();
