@@ -4,7 +4,7 @@
 // An inference function takes the current continuation and a WebPPL
 // thunk (which itself has been transformed to take a
 // continuation). It does some kind of inference and returns an ERP
-// representing the nromalized marginal distribution on return values.
+// representing the normalized marginal distribution on return values.
 //
 // The inference function should install a coroutine object that
 // provides sample, factor, and exit.
@@ -14,7 +14,7 @@
 //
 // The inference function passes exit to the wppl fn, so that it gets
 // called when the fn is exited, it can call the inference cc when
-// inference is done to contintue the program.
+// inference is done to continue the program.
 
 'use strict';
 
